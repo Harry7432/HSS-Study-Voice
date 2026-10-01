@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # Default TTS Settings
     DEFAULT_PROVIDER: str = "piper"
-    DEFAULT_VOICE: str = "pt_BR-faber-medium"
+    DEFAULT_VOICE: str = "pt_BR-cadu-medium"
     DEFAULT_SPEED: float = 1.0
 
     # Centralized Chunking Configuration
