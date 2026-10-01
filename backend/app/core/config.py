@@ -25,7 +25,9 @@ class Settings(BaseSettings):
 
     # Audio Export Configuration
     MP3_BITRATE: str = "192k"
-    FFMPEG_PATH: str = "ffmpeg"  # Override to use a specific ffmpeg binary path
+    # Leave FFMPEG_PATH empty to auto-detect via shutil.which("ffmpeg").
+    # Set it in .env to force a specific binary, e.g. /usr/local/bin/ffmpeg.
+    FFMPEG_PATH: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

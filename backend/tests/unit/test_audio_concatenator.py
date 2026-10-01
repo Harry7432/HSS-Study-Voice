@@ -1,6 +1,8 @@
 """Unit tests for AudioConcatenator.
 
-Uses mocked subprocess and shutil so no real FFmpeg is required.
+Uses mocked subprocess and the shared _ffmpeg resolver so no real FFmpeg
+is required.  The correct patch target is ``app.services.audio._ffmpeg.shutil``
+because that is where ``shutil.which`` is now called.
 """
 
 from __future__ import annotations
@@ -13,6 +15,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services.audio.concatenator import AudioConcatenator, AudioConcatError
+
+# Patch target: shutil lives inside the _ffmpeg helper module
+_WHICH_TARGET = "app.services.audio._ffmpeg.shutil.which"
+_RUN_TARGET = "app.services.audio.concatenator.subprocess.run"
 
 
 # ---------------------------------------------------------------------------
@@ -41,14 +47,13 @@ def test_concatenate_empty_list_raises(tmp_path):
 
 
 def test_concatenate_single_file_copies_without_ffmpeg(tmp_path):
-    """A single WAV is copied directly, no FFmpeg subprocess is spawned."""
+    """A single WAV is copied directly — no FFmpeg resolution is attempted."""
     src = _make_wav(tmp_path / "chunk_0.wav")
     dst = tmp_path / "merged.wav"
 
-    # Patch shutil.which so ffmpeg appears missing — single-file path must not call it
-    with patch("app.services.audio.concatenator.shutil.which", return_value=None):
-        cat = AudioConcatenator(ffmpeg_path="ffmpeg")
-        result = cat.concatenate([src], dst)
+    # No patch needed: single-file path never calls _assert_ffmpeg_available
+    cat = AudioConcatenator(ffmpeg_path="ffmpeg")
+    result = cat.concatenate([src], dst)
 
     assert result == dst
     assert dst.exists()
@@ -61,12 +66,11 @@ def test_concatenate_multiple_files_calls_ffmpeg(tmp_path):
     dst = tmp_path / "merged.wav"
 
     with (
-        patch("app.services.audio.concatenator.shutil.which", return_value="/usr/bin/ffmpeg"),
-        patch("app.services.audio.concatenator.subprocess.run") as mock_run,
+        patch(_WHICH_TARGET, return_value="/usr/bin/ffmpeg"),
+        patch(_RUN_TARGET) as mock_run,
     ):
-        # Simulate ffmpeg creating the output file
         mock_run.return_value = MagicMock(returncode=0)
-        dst.write_bytes(b"fake")  # make it appear created
+        dst.write_bytes(b"fake")  # simulate ffmpeg output
 
         cat = AudioConcatenator(ffmpeg_path="ffmpeg")
         result = cat.concatenate(wavs, dst)
@@ -84,8 +88,8 @@ def test_concatenate_ffmpeg_failure_raises(tmp_path):
     dst = tmp_path / "merged.wav"
 
     with (
-        patch("app.services.audio.concatenator.shutil.which", return_value="/usr/bin/ffmpeg"),
-        patch("app.services.audio.concatenator.subprocess.run") as mock_run,
+        patch(_WHICH_TARGET, return_value="/usr/bin/ffmpeg"),
+        patch(_RUN_TARGET) as mock_run,
     ):
         mock_run.return_value = MagicMock(returncode=1, stderr="codec error")
 
@@ -98,7 +102,7 @@ def test_concatenate_ffmpeg_not_found_raises(tmp_path):
     """Missing FFmpeg binary raises AudioConcatError before any subprocess."""
     wavs = [_make_wav(tmp_path / f"chunk_{i}.wav") for i in range(2)]
 
-    with patch("app.services.audio.concatenator.shutil.which", return_value=None):
+    with patch(_WHICH_TARGET, return_value=None):
         cat = AudioConcatenator(ffmpeg_path="ffmpeg")
         with pytest.raises(AudioConcatError, match="not found"):
             cat.concatenate(wavs, tmp_path / "out.wav")

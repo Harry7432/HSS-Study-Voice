@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import logging
 import shlex
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
 
 from app.core.config import settings
+from app.services.audio._ffmpeg import FFmpegNotFoundError, resolve_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,10 @@ class MP3Exporter:
     """Convert a WAV file to MP3 using FFmpeg's ``libmp3lame`` encoder.
 
     Args:
-        ffmpeg_path: Path or name of the ``ffmpeg`` executable.  Defaults to
-            :data:`settings.FFMPEG_PATH`.
+        ffmpeg_path: Explicit path or name of the ``ffmpeg`` executable.
+            Overrides :data:`settings.FFMPEG_PATH` and auto-detection.
+            Pass ``None`` (default) to use the standard resolution order:
+            ``settings.FFMPEG_PATH`` → ``shutil.which("ffmpeg")``.
         bitrate: MP3 bitrate string (e.g. ``"192k"``).  Defaults to
             :data:`settings.MP3_BITRATE`.
     """
@@ -37,7 +39,7 @@ class MP3Exporter:
         ffmpeg_path: Optional[str] = None,
         bitrate: Optional[str] = None,
     ) -> None:
-        self._ffmpeg = ffmpeg_path or settings.FFMPEG_PATH
+        self._ffmpeg_override = ffmpeg_path  # None = use settings + auto-detect
         self._bitrate = bitrate or settings.MP3_BITRATE
 
     # ------------------------------------------------------------------ #
@@ -66,11 +68,12 @@ class MP3Exporter:
         output_path = Path(output_path)
         effective_bitrate = bitrate or self._bitrate
 
-        if not shutil.which(self._ffmpeg):
-            raise MP3ExportError(
-                f"FFmpeg executable not found: '{self._ffmpeg}'. "
-                "Install FFmpeg or set the FFMPEG_PATH environment variable."
-            )
+        # Resolve FFmpeg binary (raises MP3ExportError if not found)
+        try:
+            override = self._ffmpeg_override if self._ffmpeg_override is not None else settings.FFMPEG_PATH
+            ffmpeg = resolve_ffmpeg(override)
+        except FFmpegNotFoundError as exc:
+            raise MP3ExportError(str(exc)) from exc
 
         if not wav_path.exists():
             raise MP3ExportError(f"Source WAV not found: {wav_path}")
@@ -78,7 +81,7 @@ class MP3Exporter:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         cmd = [
-            self._ffmpeg,
+            ffmpeg,
             "-y",
             "-i", str(wav_path),
             "-codec:a", "libmp3lame",
@@ -107,3 +110,4 @@ class MP3Exporter:
             size_kb,
         )
         return output_path
+

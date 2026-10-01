@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import settings
+from app.services.audio._ffmpeg import FFmpegNotFoundError, resolve_ffmpeg
 from app.services.audio.orchestrator import AudioOrchestrator
 from app.services.text.pipeline import TextPreprocessingPipeline
 
@@ -25,7 +26,11 @@ from app.services.text.pipeline import TextPreprocessingPipeline
 # Skip guards
 # ---------------------------------------------------------------------------
 
-FFMPEG_AVAILABLE = shutil.which(settings.FFMPEG_PATH) is not None
+try:
+    resolve_ffmpeg(settings.FFMPEG_PATH)
+    FFMPEG_AVAILABLE = True
+except FFmpegNotFoundError:
+    FFMPEG_AVAILABLE = False
 VOICE_AVAILABLE = (
     (settings.VOICES_DIR / f"{settings.DEFAULT_VOICE}.onnx").exists()
     and (settings.VOICES_DIR / f"{settings.DEFAULT_VOICE}.onnx.json").exists()

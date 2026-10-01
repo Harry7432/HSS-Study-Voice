@@ -1,6 +1,8 @@
 """Unit tests for MP3Exporter.
 
-All tests mock subprocess and shutil so no real FFmpeg is required.
+All tests mock subprocess and the shared _ffmpeg resolver so no real FFmpeg
+is required.  The correct patch target is ``app.services.audio._ffmpeg.shutil``
+because that is where ``shutil.which`` is now called.
 """
 
 from __future__ import annotations
@@ -12,6 +14,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services.audio.exporter import MP3Exporter, MP3ExportError
+
+# Patch target: shutil lives inside the _ffmpeg helper module
+_WHICH_TARGET = "app.services.audio._ffmpeg.shutil.which"
+_RUN_TARGET = "app.services.audio.exporter.subprocess.run"
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +36,6 @@ def _make_wav(path: Path) -> Path:
 
 def _fake_ffmpeg_run(cmd, **kwargs):
     """Simulate a successful FFmpeg run that creates the output file."""
-    # The output path is the last positional argument
     out = Path(cmd[-1])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(b"ID3" + b"\x00" * 512)  # minimal fake MP3
@@ -47,8 +52,8 @@ def test_export_calls_ffmpeg_with_correct_args(tmp_path):
     dst = tmp_path / "output.mp3"
 
     with (
-        patch("app.services.audio.exporter.shutil.which", return_value="/usr/bin/ffmpeg"),
-        patch("app.services.audio.exporter.subprocess.run", side_effect=_fake_ffmpeg_run) as mock_run,
+        patch(_WHICH_TARGET, return_value="/usr/bin/ffmpeg"),
+        patch(_RUN_TARGET, side_effect=_fake_ffmpeg_run) as mock_run,
     ):
         exporter = MP3Exporter(ffmpeg_path="ffmpeg", bitrate="128k")
         exporter.export(src, dst)
@@ -67,8 +72,8 @@ def test_export_bitrate_override(tmp_path):
     dst = tmp_path / "output.mp3"
 
     with (
-        patch("app.services.audio.exporter.shutil.which", return_value="/usr/bin/ffmpeg"),
-        patch("app.services.audio.exporter.subprocess.run", side_effect=_fake_ffmpeg_run) as mock_run,
+        patch(_WHICH_TARGET, return_value="/usr/bin/ffmpeg"),
+        patch(_RUN_TARGET, side_effect=_fake_ffmpeg_run) as mock_run,
     ):
         exporter = MP3Exporter(ffmpeg_path="ffmpeg", bitrate="192k")
         exporter.export(src, dst, bitrate="64k")  # override
@@ -82,7 +87,7 @@ def test_export_ffmpeg_not_found_raises(tmp_path):
     """Missing FFmpeg binary raises MP3ExportError before calling subprocess."""
     src = _make_wav(tmp_path / "merged.wav")
 
-    with patch("app.services.audio.exporter.shutil.which", return_value=None):
+    with patch(_WHICH_TARGET, return_value=None):
         exporter = MP3Exporter(ffmpeg_path="ffmpeg")
         with pytest.raises(MP3ExportError, match="not found"):
             exporter.export(src, tmp_path / "out.mp3")
@@ -90,7 +95,7 @@ def test_export_ffmpeg_not_found_raises(tmp_path):
 
 def test_export_missing_wav_raises(tmp_path):
     """Non-existent source WAV raises MP3ExportError."""
-    with patch("app.services.audio.exporter.shutil.which", return_value="/usr/bin/ffmpeg"):
+    with patch(_WHICH_TARGET, return_value="/usr/bin/ffmpeg"):
         exporter = MP3Exporter(ffmpeg_path="ffmpeg")
         with pytest.raises(MP3ExportError, match="not found"):
             exporter.export(tmp_path / "ghost.wav", tmp_path / "out.mp3")
@@ -101,8 +106,8 @@ def test_export_ffmpeg_failure_raises(tmp_path):
     src = _make_wav(tmp_path / "merged.wav")
 
     with (
-        patch("app.services.audio.exporter.shutil.which", return_value="/usr/bin/ffmpeg"),
-        patch("app.services.audio.exporter.subprocess.run") as mock_run,
+        patch(_WHICH_TARGET, return_value="/usr/bin/ffmpeg"),
+        patch(_RUN_TARGET) as mock_run,
     ):
         mock_run.return_value = MagicMock(returncode=1, stderr="encode error")
 

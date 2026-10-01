@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.core.config import settings
+from app.services.audio._ffmpeg import FFmpegNotFoundError, resolve_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,15 @@ class AudioConcatenator:
     """Concatenate multiple WAV files into one using FFmpeg's concat demuxer.
 
     Args:
-        ffmpeg_path: Path or name of the ``ffmpeg`` executable.  Defaults to
-            :data:`settings.FFMPEG_PATH` (``"ffmpeg"``).
+        ffmpeg_path: Explicit path or name of the ``ffmpeg`` executable.
+            Overrides :data:`settings.FFMPEG_PATH` and auto-detection.
+            Pass ``None`` (default) to use the standard resolution order:
+            ``settings.FFMPEG_PATH`` → ``shutil.which("ffmpeg")``.
     """
 
     def __init__(self, ffmpeg_path: Optional[str] = None) -> None:
-        self._ffmpeg = ffmpeg_path or settings.FFMPEG_PATH
+        # None means "use settings + auto-detect"; empty string also means auto.
+        self._ffmpeg_override = ffmpeg_path  # preserve for lazy resolution
 
     # ------------------------------------------------------------------ #
 
@@ -68,6 +72,8 @@ class AudioConcatenator:
 
         self._assert_ffmpeg_available()
 
+        ffmpeg = self._resolve_ffmpeg()
+
         # Build the concat list in a temporary text file.
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -83,7 +89,7 @@ class AudioConcatenator:
 
         try:
             cmd = [
-                self._ffmpeg,
+                ffmpeg,
                 "-y",                        # overwrite without asking
                 "-f", "concat",
                 "-safe", "0",
@@ -116,9 +122,15 @@ class AudioConcatenator:
 
     # ------------------------------------------------------------------ #
 
+    def _resolve_ffmpeg(self) -> str:
+        """Return resolved FFmpeg binary path using the shared helper."""
+        override = self._ffmpeg_override if self._ffmpeg_override is not None else settings.FFMPEG_PATH
+        try:
+            return resolve_ffmpeg(override)
+        except FFmpegNotFoundError as exc:
+            raise AudioConcatError(str(exc)) from exc
+
     def _assert_ffmpeg_available(self) -> None:
-        if not shutil.which(self._ffmpeg):
-            raise AudioConcatError(
-                f"FFmpeg executable not found: '{self._ffmpeg}'. "
-                "Install FFmpeg or set the FFMPEG_PATH environment variable."
-            )
+        """Raise AudioConcatError early if FFmpeg cannot be resolved."""
+        self._resolve_ffmpeg()  # raises on failure
+
