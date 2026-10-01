@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     MAX_CHUNK_CHARS: int = 500
     MIN_CHUNK_CHARS: int = 20
 
+    # Audio Export Configuration
+    MP3_BITRATE: str = "192k"
+    FFMPEG_PATH: str = "ffmpeg"  # Override to use a specific ffmpeg binary path
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
