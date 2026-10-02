@@ -99,3 +99,42 @@ def test_chunk_paragraphs_separated():
     full = " ".join(result)
     assert "Primeiro parágrafo" in full
     assert "Segundo parágrafo" in full
+
+
+def test_prepare_sentences_extracts_canonical_sentences_before_grouping():
+    chunker = make_chunker(max_chars=100, min_chars=5)
+
+    sentences = chunker.prepare_sentences("Primeira frase. Segunda frase?")
+
+    assert [sentence.text for sentence in sentences] == [
+        "Primeira frase.",
+        "Segunda frase?",
+    ]
+
+
+def test_prepare_sentences_preserves_repeated_text_identity_by_position():
+    chunker = make_chunker(max_chars=100, min_chars=5)
+
+    sentences = chunker.prepare_sentences("Repita. Repita.")
+
+    assert [(sentence.index, sentence.text) for sentence in sentences] == [
+        (0, "Repita."),
+        (1, "Repita."),
+    ]
+    assert sentences[0] is not sentences[1]
+
+
+def test_prepare_sentences_keeps_oversized_sentence_as_multiple_fragments():
+    chunker = make_chunker(max_chars=12, min_chars=5)
+
+    sentences = chunker.prepare_sentences("alpha beta gamma delta")
+
+    assert len(sentences) == 1
+    assert sentences[0].text == "alpha beta gamma delta"
+    assert [
+        (fragment.index, fragment.text)
+        for fragment in sentences[0].fragments
+    ] == [
+        (0, "alpha beta"),
+        (1, "gamma delta"),
+    ]

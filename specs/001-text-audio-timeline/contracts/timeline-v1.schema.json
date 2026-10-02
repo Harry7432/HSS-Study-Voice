@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hss-study-voice.local/schemas/timeline-v1.schema.json",
+  "title": "HSS Study Voice Timeline v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "audio", "chunks"],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "audio": {
+      "$ref": "#/$defs/audio"
+    },
+    "chunks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/chunk"
+      }
+    }
+  },
+  "$defs": {
+    "sample": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filename", "sha256", "sample_rate_hz", "total_samples"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "minLength": 5,
+          "pattern": "^[^/\\\\]+\\.mp3$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sample_rate_hz": {
+          "const": 22050
+        },
+        "total_samples": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "start_sample", "end_sample", "sentences"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_sample": {
+          "$ref": "#/$defs/sample"
+        },
+        "end_sample": {
+          "$ref": "#/$defs/sample"
+        },
+        "sentences": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        }
+      }
+    },
+    "sentence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "text", "start_sample", "end_sample"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_sample": {
+          "$ref": "#/$defs/sample"
+        },
+        "end_sample": {
+          "$ref": "#/$defs/sample"
+        }
+      }
+    }
+  },
+  "$comment": "Cross-item ordering, contiguity, aggregate ranges, WAV provenance and SHA-256 file verification require domain validation beyond JSON Schema."
+}

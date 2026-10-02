@@ -112,7 +112,15 @@ class PiperProvider(BaseTTSProvider):
 
         try:
             with wave.open(str(output_path), "wb") as wav_file:
-                piper_voice.synthesize_wav(text, wav_file, syn_config=syn_config)
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(piper_voice.config.sample_rate)
+                piper_voice.synthesize_wav(
+                    text,
+                    wav_file,
+                    syn_config=syn_config,
+                    set_wav_format=False,
+                )
         except Exception as e:
             raise TTSSynthesisError(f"Erro durante síntese do áudio com Piper: {e}") from e
 
