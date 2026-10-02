@@ -13,6 +13,7 @@ import pytest
 
 from app.providers.tts.base import TTSSynthesisError
 from app.services.audio.renderer import AudioRenderer, AudioRenderError
+from app.services.text.models import SynthesisFragment
 
 
 # ---------------------------------------------------------------------------
@@ -149,3 +150,74 @@ def test_render_chunks_no_cleanup_on_error_keeps_files(tmp_path):
 
     remaining = list(seg_dir.glob("*.wav"))
     assert len(remaining) == 1, "Expected the first WAV to be preserved"
+
+
+def test_render_fragments_preserves_order_and_measures_real_wav_frames(tmp_path):
+    frame_counts = {"Alpha": 7, "beta.": 11, "Gamma.": 13}
+    provider = MagicMock()
+
+    def _synthesize(text, output_path, voice, speed):
+        del voice, speed
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(output_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(22050)
+            wf.writeframes(b"\x00\x00" * frame_counts[text])
+        return output_path
+
+    provider.synthesize.side_effect = _synthesize
+    renderer = AudioRenderer(provider=provider)
+    fragments = [
+        SynthesisFragment(index=0, text="Alpha"),
+        SynthesisFragment(index=1, text="beta."),
+        SynthesisFragment(index=0, text="Gamma."),
+    ]
+
+    rendered = renderer.render_fragments(
+        fragments=fragments,
+        voice="pt_BR-cadu-medium",
+        speed=1.0,
+        temp_dir=tmp_path / "fragments",
+    )
+
+    assert [fragment.text for fragment in rendered] == [
+        "Alpha",
+        "beta.",
+        "Gamma.",
+    ]
+    assert [fragment.frame_count for fragment in rendered] == [7, 11, 13]
+    assert [fragment.wav_path.name for fragment in rendered] == [
+        "fragment_0.wav",
+        "fragment_1.wav",
+        "fragment_2.wav",
+    ]
+    assert [call.kwargs["text"] for call in provider.synthesize.call_args_list] == [
+        "Alpha",
+        "beta.",
+        "Gamma.",
+    ]
+
+
+def test_render_fragments_cleans_up_partially_written_current_wav(tmp_path):
+    provider = MagicMock()
+
+    def _fail_after_write(text, output_path, voice, speed):
+        del text, voice, speed
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"partial")
+        raise TTSSynthesisError("Simulated synthesis failure")
+
+    provider.synthesize.side_effect = _fail_after_write
+    renderer = AudioRenderer(provider=provider)
+    output_dir = tmp_path / "fragments"
+
+    with pytest.raises(AudioRenderError):
+        renderer.render_fragments(
+            fragments=[SynthesisFragment(index=0, text="Alpha")],
+            voice="pt_BR-cadu-medium",
+            speed=1.0,
+            temp_dir=output_dir,
+        )
+
+    assert list(output_dir.glob("*.wav")) == []

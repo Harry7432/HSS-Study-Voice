@@ -10,14 +10,18 @@ skipped in CI environments that lack these dependencies.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 import time
+import wave
 from pathlib import Path
 
 import pytest
 
 from app.core.config import settings
 from app.services.audio._ffmpeg import FFmpegNotFoundError, resolve_ffmpeg
+from app.services.audio.concatenator import AudioConcatenator
 from app.services.audio.orchestrator import AudioOrchestrator
 from app.services.text.pipeline import TextPreprocessingPipeline
 
@@ -54,6 +58,28 @@ def orchestrator() -> AudioOrchestrator:
 @pytest.fixture(scope="module")
 def pipeline() -> TextPreprocessingPipeline:
     return TextPreprocessingPipeline()
+
+
+class _RecordingConcatenator(AudioConcatenator):
+    """Run real concatenation while retaining PCM facts for assertions."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.segment_names: list[str] = []
+        self.segment_frame_counts: list[int] = []
+        self.merged_frame_count = 0
+
+    def concatenate(self, wav_paths: list[Path], output_path: Path) -> Path:
+        self.segment_names = [path.name for path in wav_paths]
+        self.segment_frame_counts = []
+        for wav_path in wav_paths:
+            with wave.open(str(wav_path), "rb") as wav_file:
+                self.segment_frame_counts.append(wav_file.getnframes())
+
+        result = super().concatenate(wav_paths, output_path)
+        with wave.open(str(result), "rb") as wav_file:
+            self.merged_frame_count = wav_file.getnframes()
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -169,3 +195,110 @@ def test_single_chunk_bypass_produces_valid_mp3(tmp_path, orchestrator):
     assert output_mp3.exists()
     assert result.chunks_count == 1
     assert result.file_size_bytes > 0
+
+
+def test_synchronized_pipeline_produces_exact_sentence_timeline(
+    tmp_path,
+    pipeline,
+):
+    """Real Piper/FFmpeg flow binds ordered sentence ranges to the final MP3."""
+    raw_text = (
+        "Primeira frase de integração. "
+        "Segunda frase com áudio. "
+        "Terceira frase final."
+    )
+    document = pipeline.prepare(raw_text)
+    prepared_sentences = document.chunks[0].sentences
+    prepared_fragments = [
+        fragment
+        for sentence in prepared_sentences
+        for fragment in sentence.fragments
+    ]
+    recording_concatenator = _RecordingConcatenator()
+    synchronized_orchestrator = AudioOrchestrator(
+        concatenator=recording_concatenator,
+    )
+    output_mp3 = tmp_path / "sentence_timeline.mp3"
+
+    result = synchronized_orchestrator.generate_synchronized(
+        document=document,
+        output_path=output_mp3,
+        voice=settings.DEFAULT_VOICE,
+        speed=1.0,
+    )
+
+    expected_timeline_path = tmp_path / "sentence_timeline.timeline.json"
+    assert result.output_path == output_mp3.resolve()
+    assert result.timeline_path == expected_timeline_path.resolve()
+    assert output_mp3.is_file()
+    assert expected_timeline_path.is_file()
+
+    timeline = json.loads(expected_timeline_path.read_text(encoding="utf-8"))
+    assert set(timeline) == {"schema_version", "audio", "chunks"}
+    assert timeline["schema_version"] == 1
+    assert set(timeline["audio"]) == {
+        "filename",
+        "sha256",
+        "sample_rate_hz",
+        "total_samples",
+    }
+    assert timeline["audio"]["filename"] == output_mp3.name
+    assert timeline["audio"]["sample_rate_hz"] == 22050
+    with output_mp3.open("rb") as mp3_file:
+        assert timeline["audio"]["sha256"] == hashlib.file_digest(
+            mp3_file,
+            "sha256",
+        ).hexdigest()
+
+    assert recording_concatenator.segment_names == [
+        f"fragment_{index}.wav" for index in range(len(prepared_fragments))
+    ]
+    assert recording_concatenator.merged_frame_count == sum(
+        recording_concatenator.segment_frame_counts
+    )
+    assert timeline["audio"]["total_samples"] == (
+        recording_concatenator.merged_frame_count
+    )
+
+    assert len(timeline["chunks"]) == 1
+    timeline_chunk = timeline["chunks"][0]
+    assert set(timeline_chunk) == {
+        "index",
+        "start_sample",
+        "end_sample",
+        "sentences",
+    }
+    assert timeline_chunk["index"] == 0
+    timeline_sentences = timeline_chunk["sentences"]
+    assert all(
+        set(sentence) == {"index", "text", "start_sample", "end_sample"}
+        for sentence in timeline_sentences
+    )
+    assert [sentence["index"] for sentence in timeline_sentences] == list(
+        range(len(prepared_sentences))
+    )
+    assert [sentence["text"] for sentence in timeline_sentences] == [
+        sentence.text for sentence in prepared_sentences
+    ]
+    assert timeline_sentences[0]["start_sample"] == 0
+    assert all(
+        current["end_sample"] == following["start_sample"]
+        for current, following in zip(
+            timeline_sentences,
+            timeline_sentences[1:],
+        )
+    )
+    assert all(
+        sentence["end_sample"] > sentence["start_sample"]
+        for sentence in timeline_sentences
+    )
+    assert all(len(sentence.fragments) == 1 for sentence in prepared_sentences)
+    assert [
+        sentence["end_sample"] - sentence["start_sample"]
+        for sentence in timeline_sentences
+    ] == recording_concatenator.segment_frame_counts
+    assert timeline_sentences[-1]["end_sample"] == (
+        recording_concatenator.merged_frame_count
+    )
+    assert timeline_chunk["start_sample"] == 0
+    assert timeline_chunk["end_sample"] == recording_concatenator.merged_frame_count

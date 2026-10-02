@@ -347,6 +347,43 @@ def test_generate_synchronized_rejects_merged_wav_frame_mismatch(
     exporter.export.assert_not_called()
 
 
+def test_generate_synchronized_rejects_incompatible_fragment_wavs(
+    tmp_path,
+    wav_builder,
+):
+    renderer = MagicMock()
+
+    def _fake_render_fragments(*, fragments, voice, speed, temp_dir):
+        del fragments, voice, speed
+        return [
+            wav_builder(Path(temp_dir) / "fragment_0.wav", frame_count=7),
+            wav_builder(
+                Path(temp_dir) / "fragment_1.wav",
+                frame_count=11,
+                channels=2,
+            ),
+            wav_builder(Path(temp_dir) / "fragment_2.wav", frame_count=13),
+        ]
+
+    renderer.render_fragments.side_effect = _fake_render_fragments
+    concatenator = MagicMock()
+    exporter = MagicMock()
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    with pytest.raises(ValueError, match="compatible PCM formats"):
+        orchestrator.generate_synchronized(
+            document=_make_prepared_document(),
+            output_path=tmp_path / "lesson.mp3",
+        )
+
+    concatenator.concatenate.assert_not_called()
+    exporter.export.assert_not_called()
+
+
 def test_generate_synchronized_exports_one_mp3_and_returns_timeline_path(
     tmp_path,
     wav_builder,

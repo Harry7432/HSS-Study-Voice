@@ -1,6 +1,7 @@
 """Unit tests for TextChunker."""
 
 import pytest
+from app.core.config import settings
 from app.services.text.chunker import TextChunker
 
 
@@ -138,3 +139,11 @@ def test_prepare_sentences_keeps_oversized_sentence_as_multiple_fragments():
         (0, "alpha beta"),
         (1, "gamma delta"),
     ]
+
+
+def test_chunk_preserves_custom_limit_above_synthesis_limit():
+    max_chars = settings.MAX_CHUNK_CHARS + 1
+    chunker = make_chunker(max_chars=max_chars, min_chars=5)
+    text = "x" * max_chars
+
+    assert chunker.chunk(text) == [text]

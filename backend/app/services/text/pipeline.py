@@ -1,13 +1,13 @@
 """Text preprocessing pipeline for TTS conversion.
 
 Composes :class:`~app.services.text.normalizer.MarkdownNormalizer` and
-:class:`~app.services.text.chunker.TextChunker` into a single entry-point
-that accepts raw (possibly Markdown-formatted) text and returns a list of
-TTS-ready plain-text chunks.
+:class:`~app.services.text.chunker.TextChunker` into entry points for legacy
+plain-text chunks and structured sentence-aware preparation.
 """
 
 from app.services.text.normalizer import MarkdownNormalizer
 from app.services.text.chunker import TextChunker
+from app.services.text.models import PreparedChunk, PreparedDocument
 
 
 class TextPreprocessingPipeline:
@@ -19,8 +19,9 @@ class TextPreprocessingPipeline:
     Args:
         normalizer: An object with a ``normalize(text: str) -> str`` method.
             Defaults to a fresh :class:`MarkdownNormalizer` instance.
-        chunker: An object with a ``chunk(text: str) -> list[str]`` method.
-            Defaults to a fresh :class:`TextChunker` instance.
+        chunker: An object with ``chunk(text: str) -> list[str]`` and
+            ``prepare_sentences(text: str)`` methods. Defaults to a fresh
+            :class:`TextChunker` instance.
 
     Example::
 
@@ -45,3 +46,11 @@ class TextPreprocessingPipeline:
         """
         normalized = self.normalizer.normalize(raw_text)
         return self.chunker.chunk(normalized)
+
+    def prepare(self, raw_text: str) -> PreparedDocument:
+        """Normalize text and preserve its canonical sentence structure."""
+        normalized = self.normalizer.normalize(raw_text)
+        sentences = self.chunker.prepare_sentences(normalized)
+        return PreparedDocument(
+            chunks=(PreparedChunk(index=0, sentences=sentences),),
+        )

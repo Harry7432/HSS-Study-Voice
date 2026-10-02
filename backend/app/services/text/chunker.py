@@ -8,7 +8,9 @@ Splits normalized plain text into chunks that:
 
 import re
 from typing import Optional
+
 from app.core.config import settings
+from app.services.text.models import PreparedSentence, SynthesisFragment
 
 
 class TextChunker:
@@ -61,10 +63,46 @@ class TextChunker:
         if not text or not text.strip():
             return []
 
-        sentences = self._extract_sentences(text)
-        raw_chunks = self._accumulate_chunks(sentences)
+        sentences = self.prepare_sentences(text)
+        raw_chunks = self._accumulate_chunks(
+            [sentence.text for sentence in sentences]
+        )
         merged = self._merge_short_chunks(raw_chunks)
         return [c for c in merged if c.strip()]
+
+    def prepare_sentences(self, text: str) -> tuple[PreparedSentence, ...]:
+        """Create canonical logical sentences before chunk grouping."""
+        if not text or not text.strip():
+            return ()
+
+        prepared = []
+        fragment_limit = min(
+            self._max_chars,
+            settings.MAX_CHUNK_CHARS,
+        )
+        for sentence_index, sentence_text in enumerate(
+            self._extract_sentences(text)
+        ):
+            fragment_texts = (
+                self._split_by_word_boundary(
+                    sentence_text,
+                    max_chars=fragment_limit,
+                )
+                if len(sentence_text) > fragment_limit
+                else [sentence_text]
+            )
+            fragments = tuple(
+                SynthesisFragment(index=index, text=fragment_text)
+                for index, fragment_text in enumerate(fragment_texts)
+            )
+            prepared.append(
+                PreparedSentence(
+                    index=sentence_index,
+                    text=sentence_text,
+                    fragments=fragments,
+                )
+            )
+        return tuple(prepared)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
@@ -124,15 +162,20 @@ class TextChunker:
 
         return chunks
 
-    def _split_by_word_boundary(self, sentence: str) -> list[str]:
+    def _split_by_word_boundary(
+        self,
+        sentence: str,
+        max_chars: Optional[int] = None,
+    ) -> list[str]:
         """Split an oversized *sentence* into sub-chunks at word boundaries."""
+        limit = max_chars if max_chars is not None else self._max_chars
         chunks: list[str] = []
-        while len(sentence) > self._max_chars:
+        while len(sentence) > limit:
             # Find the last space within the allowed window
-            split_at = sentence.rfind(" ", 0, self._max_chars)
+            split_at = sentence.rfind(" ", 0, limit)
             if split_at == -1:
                 # No space found — hard-cut at the character limit
-                split_at = self._max_chars
+                split_at = limit
             chunks.append(sentence[:split_at].strip())
             sentence = sentence[split_at:].strip()
         if sentence:

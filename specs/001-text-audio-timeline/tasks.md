@@ -59,13 +59,13 @@ merged-WAV frame count.
 
 ### Implementation for User Story 1
 
-- [ ] T007 [P] [US1] Implement immutable `PreparedDocument`, `PreparedChunk`, `PreparedSentence`, and `SynthesisFragment` models in `backend/app/services/text/models.py` with non-empty collections/text, zero-based positional indices, bounded fragment text, temporary WAV path, and positive frame-count rules from `data-model.md`
-- [ ] T008 [US1] Refactor sentence extraction and hard splitting in `backend/app/services/text/chunker.py` so canonical sentences are created before chunk grouping while existing `chunk()` outputs remain unchanged
-- [ ] T009 [US1] Add the explicit structured preparation flow to `backend/app/services/text/pipeline.py` while preserving the current `process()` contract
-- [ ] T010 [P] [US1] Implement timeline v1 domain models, sidecar naming, sample-range validation, UTF-8 serialization, and merged-frame verification in `backend/app/services/audio/timeline.py` with `schema_version == 1`, 64-character lowercase SHA-256, `sample_rate_hz == 22050`, positive `total_samples`, basename-only lowercase `.mp3`, and sample integers at most `9007199254740991`
-- [ ] T011 [P] [US1] Extend ordered fragment rendering in `backend/app/services/audio/renderer.py` without changing the existing `render_chunks()` contract or Piper provider interface
-- [ ] T012 [US1] Add synchronized generation to `backend/app/services/audio/orchestrator.py` by flattening prepared fragments, reading actual WAV frames, verifying the merged total, exporting exactly one MP3, writing `<stem>.timeline.json`, and adding trailing/defaulted `timeline_path` metadata without removing existing `AudioResult` fields
-- [ ] T013 [US1] Add a real Piper/FFmpeg sentence-timeline scenario with dependency skip guards in `backend/tests/integration/test_audio_pipeline.py`
+- [x] T007 [P] [US1] Implement immutable `PreparedDocument`, `PreparedChunk`, `PreparedSentence`, and `SynthesisFragment` models in `backend/app/services/text/models.py` with non-empty collections/text, zero-based positional indices, bounded fragment text, temporary WAV path, and positive frame-count rules from `data-model.md`
+- [x] T008 [US1] Refactor sentence extraction and hard splitting in `backend/app/services/text/chunker.py` so canonical sentences are created before chunk grouping while existing `chunk()` outputs remain unchanged
+- [x] T009 [US1] Add the explicit structured preparation flow to `backend/app/services/text/pipeline.py` while preserving the current `process()` contract
+- [x] T010 [P] [US1] Implement timeline v1 domain models, sidecar naming, sample-range validation, UTF-8 serialization, and merged-frame verification in `backend/app/services/audio/timeline.py` with `schema_version == 1`, 64-character lowercase SHA-256, `sample_rate_hz == 22050`, positive `total_samples`, basename-only lowercase `.mp3`, and sample integers at most `9007199254740991`
+- [x] T011 [P] [US1] Extend ordered fragment rendering in `backend/app/services/audio/renderer.py` without changing the existing `render_chunks()` contract or Piper provider interface
+- [x] T012 [US1] Add synchronized generation to `backend/app/services/audio/orchestrator.py` by flattening prepared fragments, reading actual WAV frames, verifying the merged total, exporting exactly one MP3, writing `<stem>.timeline.json`, and adding trailing/defaulted `timeline_path` metadata without removing existing `AudioResult` fields
+- [x] T013 [US1] Add a real Piper/FFmpeg sentence-timeline scenario with dependency skip guards in `backend/tests/integration/test_audio_pipeline.py`
 
 **Checkpoint**: User Story 1 independently produces exact sentence ranges for one logical chunk and preserves all legacy calls.
 
