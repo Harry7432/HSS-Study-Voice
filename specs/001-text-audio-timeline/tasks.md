@@ -53,9 +53,9 @@ merged-WAV frame count.
 ### Tests for User Story 1
 
 - [x] T003 [P] [US1] Add failing tests for canonical sentence extraction before grouping, repeated text identity, and oversized-sentence fragments in `backend/tests/unit/test_chunker.py`
-- [ ] T004 [P] [US1] Add failing tests for the structured preprocessing entry point while preserving `process() -> list[str]` behavior in `backend/tests/unit/test_pipeline.py`
-- [ ] T005 [P] [US1] Add failing tests for timeline v1 required fields, half-open contiguous ranges, 22050 Hz, positive totals, and merged-frame equality in `backend/tests/unit/test_timeline.py`
-- [ ] T006 [P] [US1] Add failing orchestrator tests for fragment rendering order, real WAV frame accounting, one MP3 export, and `timeline_path` result metadata in `backend/tests/unit/test_audio_orchestrator.py`
+- [x] T004 [P] [US1] Add failing tests for the structured preprocessing entry point while preserving `process() -> list[str]` behavior in `backend/tests/unit/test_pipeline.py`
+- [x] T005 [P] [US1] Add failing tests for timeline v1 required fields, half-open contiguous ranges, 22050 Hz, positive totals, and merged-frame equality in `backend/tests/unit/test_timeline.py`
+- [x] T006 [P] [US1] Add failing orchestrator tests for fragment rendering order, real WAV frame accounting, one MP3 export, and `timeline_path` result metadata in `backend/tests/unit/test_audio_orchestrator.py`
 
 ### Implementation for User Story 1
 

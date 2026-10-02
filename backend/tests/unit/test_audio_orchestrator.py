@@ -6,6 +6,7 @@ as mocks so these tests run without Piper models or FFmpeg installed.
 
 from __future__ import annotations
 
+import json
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,6 +58,115 @@ def _make_mock_trio(tmp_path: Path):
     mock_exp.export.side_effect = _fake_export
 
     return mock_renderer, mock_cat, mock_exp
+
+
+@dataclass(frozen=True)
+class _PreparedFragment:
+    index: int
+    text: str
+
+
+@dataclass(frozen=True)
+class _PreparedSentence:
+    index: int
+    text: str
+    fragments: tuple[_PreparedFragment, ...]
+
+
+@dataclass(frozen=True)
+class _PreparedChunk:
+    index: int
+    sentences: tuple[_PreparedSentence, ...]
+
+
+@dataclass(frozen=True)
+class _PreparedDocument:
+    chunks: tuple[_PreparedChunk, ...]
+
+
+def _make_prepared_document() -> _PreparedDocument:
+    return _PreparedDocument(
+        chunks=(
+            _PreparedChunk(
+                index=0,
+                sentences=(
+                    _PreparedSentence(
+                        index=0,
+                        text="Alpha beta.",
+                        fragments=(
+                            _PreparedFragment(index=0, text="Alpha"),
+                            _PreparedFragment(index=1, text="beta."),
+                        ),
+                    ),
+                    _PreparedSentence(
+                        index=1,
+                        text="Gamma.",
+                        fragments=(
+                            _PreparedFragment(index=0, text="Gamma."),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def _make_synchronized_mock_trio(
+    tmp_path: Path,
+    wav_builder,
+    *,
+    merged_frame_count=None,
+):
+    frame_counts = (7, 11, 13)
+    events = []
+    rendered_paths = [
+        tmp_path / f"fragment_{index}.wav"
+        for index in range(len(frame_counts))
+    ]
+
+    renderer = MagicMock()
+
+    def _fake_render_fragments(*, fragments, voice, speed, temp_dir):
+        del fragments, voice, speed
+        events.append("render")
+        paths = []
+        for path, frame_count in zip(rendered_paths, frame_counts, strict=True):
+            paths.append(
+                wav_builder(
+                    Path(temp_dir) / path.name,
+                    frame_count=frame_count,
+                )
+            )
+        return paths
+
+    renderer.render_fragments.side_effect = _fake_render_fragments
+
+    concatenator = MagicMock()
+
+    def _fake_concatenate(wavs, output_path):
+        events.append("concatenate")
+        assert [path.name for path in wavs] == [path.name for path in rendered_paths]
+        return wav_builder(
+            output_path,
+            frame_count=(
+                sum(frame_counts)
+                if merged_frame_count is None
+                else merged_frame_count
+            ),
+        )
+
+    concatenator.concatenate.side_effect = _fake_concatenate
+
+    exporter = MagicMock()
+
+    def _fake_export(wav_path, output_path, bitrate=None):
+        del wav_path, bitrate
+        events.append("export")
+        output_path.write_bytes(b"ID3-synchronized")
+        return output_path
+
+    exporter.export.side_effect = _fake_export
+    return renderer, concatenator, exporter, events
 
 
 # ---------------------------------------------------------------------------
@@ -156,3 +266,110 @@ def test_generate_mp3_passes_voice_and_speed(tmp_path):
     call_kwargs = renderer.render_chunks.call_args.kwargs
     assert call_kwargs["voice"] == "pt_BR-faber-medium"
     assert call_kwargs["speed"] == 1.25
+
+
+def test_generate_synchronized_renders_fragments_in_document_order(
+    tmp_path,
+    wav_builder,
+):
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    orchestrator.generate_synchronized(
+        document=_make_prepared_document(),
+        output_path=tmp_path / "lesson.mp3",
+    )
+
+    fragments = renderer.render_fragments.call_args.kwargs["fragments"]
+    assert [fragment.text for fragment in fragments] == [
+        "Alpha",
+        "beta.",
+        "Gamma.",
+    ]
+    concatenator.concatenate.assert_called_once()
+
+
+def test_generate_synchronized_uses_actual_wav_frames_for_sentence_ranges(
+    tmp_path,
+    wav_builder,
+):
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    result = orchestrator.generate_synchronized(
+        document=_make_prepared_document(),
+        output_path=tmp_path / "lesson.mp3",
+    )
+
+    timeline = json.loads(result.timeline_path.read_text(encoding="utf-8"))
+    assert timeline["audio"]["total_samples"] == 31
+    assert [
+        (sentence["start_sample"], sentence["end_sample"])
+        for sentence in timeline["chunks"][0]["sentences"]
+    ] == [(0, 18), (18, 31)]
+
+
+def test_generate_synchronized_rejects_merged_wav_frame_mismatch(
+    tmp_path,
+    wav_builder,
+):
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+        merged_frame_count=30,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    with pytest.raises(ValueError):
+        orchestrator.generate_synchronized(
+            document=_make_prepared_document(),
+            output_path=tmp_path / "lesson.mp3",
+        )
+
+    exporter.export.assert_not_called()
+
+
+def test_generate_synchronized_exports_one_mp3_and_returns_timeline_path(
+    tmp_path,
+    wav_builder,
+):
+    renderer, concatenator, exporter, events = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+    output_path = tmp_path / "lesson.mp3"
+
+    result = orchestrator.generate_synchronized(
+        document=_make_prepared_document(),
+        output_path=output_path,
+    )
+
+    exporter.export.assert_called_once()
+    merged_wav = concatenator.concatenate.call_args.args[1]
+    assert exporter.export.call_args.kwargs["wav_path"] == merged_wav
+    assert events == ["render", "concatenate", "export"]
+    assert result.timeline_path == (tmp_path / "lesson.timeline.json").resolve()
+    assert result.timeline_path.is_file()

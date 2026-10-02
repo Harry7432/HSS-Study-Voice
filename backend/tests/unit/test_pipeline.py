@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 import pytest
+from app.services.text.chunker import TextChunker
 from app.services.text.pipeline import TextPreprocessingPipeline
 
 
@@ -65,3 +66,43 @@ def test_pipeline_uses_custom_normalizer_and_chunker():
     mock_normalizer.normalize.assert_called_once_with("Entrada qualquer.")
     mock_chunker.chunk.assert_called_once_with("Texto normalizado.")
     assert result == ["Texto normalizado."]
+
+
+def test_pipeline_prepare_returns_normalized_structured_document():
+    pipeline = TextPreprocessingPipeline(
+        chunker=TextChunker(max_chars=100, min_chars=5),
+    )
+
+    document = pipeline.prepare("1. Primeira frase.\n2. Segunda frase?")
+
+    assert len(document.chunks) == 1
+    chunk = document.chunks[0]
+    assert (chunk.index, chunk.text) == (
+        0,
+        "Primeira frase. Segunda frase?",
+    )
+    assert [
+        (sentence.index, sentence.text)
+        for sentence in chunk.sentences
+    ] == [
+        (0, "Primeira frase."),
+        (1, "Segunda frase?"),
+    ]
+    assert [
+        [(fragment.index, fragment.text) for fragment in sentence.fragments]
+        for sentence in chunk.sentences
+    ] == [
+        [(0, "Primeira frase.")],
+        [(0, "Segunda frase?")],
+    ]
+
+
+def test_pipeline_process_keeps_legacy_list_contract():
+    pipeline = TextPreprocessingPipeline(
+        chunker=TextChunker(max_chars=100, min_chars=5),
+    )
+
+    result = pipeline.process("Primeira **frase**. Segunda frase?")
+
+    assert result == ["Primeira frase. Segunda frase?"]
+    assert all(isinstance(chunk, str) for chunk in result)
