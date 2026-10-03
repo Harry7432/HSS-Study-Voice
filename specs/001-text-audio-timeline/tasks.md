@@ -106,14 +106,14 @@ remains available byte-for-byte.
 
 ### Tests for User Story 3
 
-- [ ] T021 [P] [US3] Add failing tests for final-byte SHA-256 binding, tampered-MP3 mismatch, lowercase digest format, lowercase `.mp3` validation, and sidecar derivation in `backend/tests/unit/test_timeline.py`
-- [ ] T022 [P] [US3] Add failing publication tests for pre-commit failure, first/second replace failure, exact rollback of complete or partial prior state, cleanup, and retained recovery backups when rollback fails in `backend/tests/unit/test_audio_orchestrator.py`
+- [x] T021 [P] [US3] Add failing tests for final-byte SHA-256 binding, tampered-MP3 mismatch, lowercase digest format, lowercase `.mp3` validation, and sidecar derivation in `backend/tests/unit/test_timeline.py`
+- [x] T022 [P] [US3] Add failing publication tests for pre-commit failure, first/second replace failure, exact rollback of complete or partial prior state, cleanup, and retained recovery backups when rollback fails in `backend/tests/unit/test_audio_orchestrator.py`
 
 ### Implementation for User Story 3
 
-- [ ] T023 [US3] Finalize SHA-256 calculation after MP3 completion and strict timeline serialization/validation in `backend/app/services/audio/timeline.py`
-- [ ] T024 [US3] Implement same-directory staging, previous-state backups, MP3-then-timeline `os.replace`, compensating rollback, cleanup, and dedicated rollback failure reporting in `backend/app/services/audio/orchestrator.py`
-- [ ] T025 [US3] Add real regeneration coverage that replaces an existing pair and verifies published SHA-256 plus staging/backup cleanup in `backend/tests/integration/test_audio_pipeline.py`
+- [x] T023 [US3] Finalize SHA-256 calculation after MP3 completion and strict timeline serialization/validation in `backend/app/services/audio/timeline.py`
+- [x] T024 [US3] Implement same-directory staging, previous-state backups, MP3-then-timeline `os.replace`, compensating rollback, cleanup, and dedicated rollback failure reporting in `backend/app/services/audio/orchestrator.py`
+- [x] T025 [US3] Add real regeneration coverage that replaces an existing pair and verifies published SHA-256 plus staging/backup cleanup in `backend/tests/integration/test_audio_pipeline.py`
 
 **Checkpoint**: All three user stories are functional; consumers can verify the exact MP3 and never receive a reported partial pair.
 
@@ -123,10 +123,10 @@ remains available byte-for-byte.
 
 **Purpose**: Verify compatibility, performance, documentation, and full-pipeline quality gates.
 
-- [ ] T026 [P] Add regression tests for unchanged `chunk()`, `process()`, `generate_mp3()` arguments, existing `AudioResult` fields, voice, speed, and bitrate forwarding in `backend/tests/unit/test_pipeline.py` and `backend/tests/unit/test_audio_orchestrator.py`
-- [ ] T027 [P] Create a repeatable baseline-versus-timeline 60-minute benchmark that excludes initial voice download and reports percentage overhead in `backend/scripts/benchmark_timeline.py`
-- [ ] T028 [P] Document synchronized generation, sidecar discovery, PCM-domain timing, SHA verification, and MP3 decoder delay limitations in `backend/README.md`
-- [ ] T029 Run all commands and inspect all expected outcomes from `specs/001-text-audio-timeline/quickstart.md`, record the measured performance result there, and confirm the full suite under `backend/tests/` passes or skips only guarded external dependencies
+- [x] T026 [P] Add regression tests for unchanged `chunk()`, `process()`, `generate_mp3()` arguments, existing `AudioResult` fields, voice, speed, and bitrate forwarding in `backend/tests/unit/test_pipeline.py` and `backend/tests/unit/test_audio_orchestrator.py`
+- [x] T027 [P] Create a repeatable baseline-versus-timeline 60-minute benchmark that excludes initial voice download and reports percentage overhead in `backend/scripts/benchmark_timeline.py`
+- [x] T028 [P] Document synchronized generation, sidecar discovery, PCM-domain timing, SHA verification, and MP3 decoder delay limitations in `backend/README.md`
+- [x] T029 Run all commands and inspect all expected outcomes from `specs/001-text-audio-timeline/quickstart.md`, record the measured performance result there, and confirm the full suite under `backend/tests/` passes or skips only guarded external dependencies
 
 ---
 

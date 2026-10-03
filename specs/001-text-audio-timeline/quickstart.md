@@ -104,3 +104,20 @@ canonical timeline.
 Use the same 60-minute fixture, voice, speed, bitrate and machine for baseline and synchronized
 runs. Exclude initial voice download. The synchronized run passes when timeline preparation adds no
 more than 5% to the baseline total duration.
+
+```powershell
+$env:PYTHONPATH = "."
+uv run python scripts/benchmark_timeline.py
+```
+
+### Measured result for T027/T029 (SC-005)
+
+- Date: 2026-10-03
+- Environment: WSL2 Ubuntu, CPython 3.13.16, FFmpeg 8.0.1, voice `pt_BR-cadu-medium`, speed 1.0,
+  bitrate 192k
+- Command: `PYTHONPATH=. uv run python scripts/benchmark_timeline.py --minutes 60`
+- Fixture: 58,352 characters, 60.48 minutes of resulting audio (shared between both runs)
+- Baseline (`generate_mp3`): 484.239 s
+- Synchronized (`generate_synchronized`): 502.733 s
+- Overhead: +18.494 s (**+3.82%**)
+- Result: **PASS** (within the 5% SC-005 gate)

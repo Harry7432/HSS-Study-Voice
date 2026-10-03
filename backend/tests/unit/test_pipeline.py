@@ -1,8 +1,10 @@
 """Unit tests for TextPreprocessingPipeline."""
 
+import inspect
 from unittest.mock import MagicMock
 import pytest
 from app.services.text.chunker import TextChunker
+from app.services.text.normalizer import MarkdownNormalizer
 from app.services.text.pipeline import TextPreprocessingPipeline
 
 
@@ -211,4 +213,74 @@ def test_pipeline_delegates_chunk_packing_to_injected_chunker():
     mock_normalizer.normalize.assert_called_once_with("Entrada bruta.")
     mock_chunker.prepare_chunks.assert_called_once_with("Texto normalizado.")
     assert document.chunks == expected_chunks
+
+
+# ------------------------------------------------------------------ #
+# T026: Regression tests — legacy chunk()/process() contract         #
+# ------------------------------------------------------------------ #
+
+def test_chunk_and_process_signatures_unchanged():
+    """Adding prepare()/prepare_chunks() must not alter the legacy signatures."""
+    chunk_params = list(inspect.signature(TextChunker.chunk).parameters)
+    assert chunk_params == ["self", "text"]
+
+    process_params = list(inspect.signature(TextPreprocessingPipeline.process).parameters)
+    assert process_params == ["self", "raw_text"]
+
+    init_params = list(inspect.signature(TextPreprocessingPipeline.__init__).parameters)
+    assert init_params == ["self", "normalizer", "chunker"]
+
+
+@pytest.mark.parametrize(
+    "raw_text",
+    [
+        "## Introdução\n\nTexto com **negrito** e [link](https://exemplo.com).",
+        "Primeira frase. Segunda frase! Terceira frase?",
+        "",
+        "Frase única sem separadores especiais",
+    ],
+)
+def test_process_output_matches_plain_normalize_then_chunk_delegation(raw_text):
+    """process() must keep delegating to normalize() then chunk(), unchanged."""
+    pipeline = TextPreprocessingPipeline()
+    normalizer = MarkdownNormalizer()
+    chunker = TextChunker()
+
+    expected = chunker.chunk(normalizer.normalize(raw_text))
+    assert pipeline.process(raw_text) == expected
+
+
+@pytest.mark.parametrize(
+    "raw_text",
+    [
+        "1. Primeira frase.\n2. Segunda frase?\n3. Terceira frase!",
+        "Frase curta. Outra frase curta. Mais uma frase curta.",
+    ],
+)
+def test_prepare_chunk_text_matches_legacy_process_output_within_one_paragraph(raw_text):
+    """Within a single paragraph, prepare() chunk text matches the legacy list output."""
+    chunker = TextChunker(max_chars=100, min_chars=5)
+    pipeline = TextPreprocessingPipeline(chunker=chunker)
+
+    legacy_chunks = pipeline.process(raw_text)
+    structured_chunks = [chunk.text for chunk in pipeline.prepare(raw_text).chunks]
+
+    assert structured_chunks == legacy_chunks
+
+
+def test_prepare_chunks_treats_paragraphs_as_hard_boundaries_unlike_legacy_chunk():
+    """prepare_chunks() keeps each paragraph as its own chunk; chunk() may merge
+    short adjacent paragraphs into one chunk instead. This divergence is an
+    intentional US2 guarantee (FR-012) and must not regress to silent merging."""
+    chunker = TextChunker(max_chars=100, min_chars=5)
+    pipeline = TextPreprocessingPipeline(chunker=chunker)
+    raw_text = (
+        "## Seção 1\n\nFrase do primeiro bloco.\n\n## Seção 2\n\nFrase do segundo bloco."
+    )
+
+    legacy_chunks = pipeline.process(raw_text)
+    structured_chunks = [chunk.text for chunk in pipeline.prepare(raw_text).chunks]
+
+    assert legacy_chunks == ["Seção 1\nFrase do primeiro bloco. Seção 2\nFrase do segundo bloco."]
+    assert structured_chunks == ["Seção 1\nFrase do primeiro bloco.", "Seção 2\nFrase do segundo bloco."]
 

@@ -6,14 +6,16 @@ as mocks so these tests run without Piper models or FFmpeg installed.
 
 from __future__ import annotations
 
+import inspect
 import json
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.core.config import settings
 from app.services.audio.orchestrator import AudioOrchestrator, AudioResult
 from app.services.audio.renderer import AudioRenderError
 
@@ -266,6 +268,86 @@ def test_generate_mp3_passes_voice_and_speed(tmp_path):
     call_kwargs = renderer.render_chunks.call_args.kwargs
     assert call_kwargs["voice"] == "pt_BR-faber-medium"
     assert call_kwargs["speed"] == 1.25
+
+
+# ---------------------------------------------------------------------------
+# T026: Regression tests — legacy generate_mp3()/AudioResult contract
+# ---------------------------------------------------------------------------
+
+def test_generate_mp3_signature_unchanged():
+    """The legacy generate_mp3() parameter names, order and defaults are untouched."""
+    params = inspect.signature(AudioOrchestrator.generate_mp3).parameters
+    assert list(params) == [
+        "self",
+        "chunks",
+        "output_path",
+        "voice",
+        "speed",
+        "bitrate",
+    ]
+    assert params["voice"].default is None
+    assert params["speed"].default is None
+    assert params["bitrate"].default is None
+
+
+def test_audio_result_preserves_existing_fields_and_adds_optional_timeline_path():
+    """AudioResult keeps every pre-existing field and only adds an optional one."""
+    field_names = [f.name for f in fields(AudioResult)]
+    assert field_names == [
+        "output_path",
+        "chunks_count",
+        "duration_seconds",
+        "file_size_bytes",
+        "processing_time_seconds",
+        "timeline_path",
+    ]
+    timeline_field = next(f for f in fields(AudioResult) if f.name == "timeline_path")
+    assert timeline_field.default is None
+
+
+def test_generate_mp3_result_has_no_timeline_path_for_legacy_flow(tmp_path):
+    """generate_mp3() (the non-synchronized flow) never populates timeline_path."""
+    renderer, cat, exp = _make_mock_trio(tmp_path)
+    orchestrator = AudioOrchestrator(renderer=renderer, concatenator=cat, exporter=exp)
+
+    result = orchestrator.generate_mp3(
+        chunks=["Texto de teste."],
+        output_path=tmp_path / "out.mp3",
+    )
+
+    assert result.timeline_path is None
+
+
+def test_generate_mp3_forwards_bitrate_to_exporter(tmp_path):
+    """A custom bitrate argument is forwarded to the exporter unchanged."""
+    renderer, cat, exp = _make_mock_trio(tmp_path)
+    orchestrator = AudioOrchestrator(renderer=renderer, concatenator=cat, exporter=exp)
+
+    orchestrator.generate_mp3(
+        chunks=["Texto."],
+        output_path=tmp_path / "out.mp3",
+        bitrate="320k",
+    )
+
+    call_kwargs = exp.export.call_args.kwargs
+    assert call_kwargs["bitrate"] == "320k"
+
+
+def test_generate_mp3_uses_settings_defaults_when_voice_speed_bitrate_omitted(tmp_path):
+    """Omitted voice/speed/bitrate fall back to the existing settings defaults."""
+    renderer, cat, exp = _make_mock_trio(tmp_path)
+    orchestrator = AudioOrchestrator(renderer=renderer, concatenator=cat, exporter=exp)
+
+    orchestrator.generate_mp3(
+        chunks=["Texto."],
+        output_path=tmp_path / "out.mp3",
+    )
+
+    render_kwargs = renderer.render_chunks.call_args.kwargs
+    assert render_kwargs["voice"] == settings.DEFAULT_VOICE
+    assert render_kwargs["speed"] == settings.DEFAULT_SPEED
+    export_kwargs = exp.export.call_args.kwargs
+    assert export_kwargs["bitrate"] == settings.MP3_BITRATE
 
 
 def test_generate_synchronized_renders_fragments_in_document_order(
