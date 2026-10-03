@@ -1,9 +1,14 @@
+import os
+import shutil
+import tempfile
 import wave
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 import httpx
 from piper import PiperVoice
 from piper.config import SynthesisConfig
+from piper.phonemize_espeak import ESPEAK_DATA_DIR
 
 from app.core.config import settings
 from app.providers.tts.base import BaseTTSProvider, TTSSynthesisError
@@ -26,6 +31,17 @@ PIPER_PT_BR_CATALOG: Dict[str, Dict[str, str]] = {
         "url_json": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/edresson/low/pt_BR-edresson-low.onnx.json",
     },
 }
+
+
+@lru_cache(maxsize=1)
+def _espeak_data_dir() -> Path:
+    """Give Piper an ASCII path because its Windows bridge cannot encode Unicode paths."""
+    if os.name != "nt" or str(ESPEAK_DATA_DIR).isascii():
+        return ESPEAK_DATA_DIR
+
+    cache_dir = Path(tempfile.gettempdir()) / "hss-study-voice" / "espeak-ng-data"
+    shutil.copytree(ESPEAK_DATA_DIR, cache_dir, dirs_exist_ok=True)
+    return cache_dir
 
 
 class PiperProvider(BaseTTSProvider):
@@ -72,7 +88,11 @@ class PiperProvider(BaseTTSProvider):
         if voice_id not in self._voice_cache:
             onnx_path, json_path = self.ensure_voice_downloaded(voice_id)
             try:
-                voice = PiperVoice.load(str(onnx_path), str(json_path))
+                voice = PiperVoice.load(
+                    str(onnx_path),
+                    str(json_path),
+                    espeak_data_dir=_espeak_data_dir(),
+                )
                 self._voice_cache[voice_id] = voice
             except Exception as e:
                 raise TTSSynthesisError(f"Falha ao carregar modelo da voz '{voice_id}': {e}") from e

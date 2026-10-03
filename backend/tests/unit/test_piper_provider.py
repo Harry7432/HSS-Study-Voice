@@ -1,3 +1,4 @@
+import os
 import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -73,7 +74,11 @@ def test_synthesize_success_with_mock(mock_ensure_download, mock_piper_voice_cls
     assert output_wav.exists()
     assert output_wav.stat().st_size > 0
     mock_ensure_download.assert_called_once_with("pt_BR-faber-medium")
-    mock_piper_voice_cls.load.assert_called_once_with(str(mock_onnx), str(mock_json))
+    load_call = mock_piper_voice_cls.load.call_args
+    assert load_call.args == (str(mock_onnx), str(mock_json))
+    assert Path(load_call.kwargs["espeak_data_dir"]).is_dir()
+    if os.name == "nt":
+        assert str(load_call.kwargs["espeak_data_dir"]).isascii()
 
 
 def test_synthesize_preserves_error_before_first_audio_chunk(tmp_path):

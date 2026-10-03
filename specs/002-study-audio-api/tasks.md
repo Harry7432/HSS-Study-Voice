@@ -219,22 +219,21 @@ confirmar `404`.
   > suíte completa (`tests` sem `--ignore`) ainda derruba o processo no mesmo ponto pré-existente
   > (`tests/integration/test_audio_pipeline.py`, ver nota em T002) — comportamento idêntico ao da
   > baseline, confirmando que nenhuma regressão foi introduzida pelo código novo desta fase.
-- [ ] T020 Executar a validação ponta a ponta real do quickstart.md §3 (subir `uvicorn`, criar um
+- [X] T020 Executar a validação ponta a ponta real do quickstart.md §3 (subir `uvicorn`, criar um
   estudo via `curl`, buscar o áudio e a timeline pelo `study_id` retornado, e confirmar os três
   casos de erro — `422` texto vazio, `404` id inexistente, `422` id malformado)
-  > **Bloqueada** nesta sessão pelo defeito de empacotamento do `piper-tts` descrito em T002
-  > (síntese real derruba o processo). Decisão do usuário: pular por agora.
-- [ ] T021 [P] Adicionar o teste de integração real (FFmpeg/Piper), seguindo o mesmo padrão de
+  > Validada com Uvicorn e `curl`: criação `201`, áudio `200`, timeline schema v1 `200` e erros
+  > `422`/`404`/`422`. O provider agora usa um cache ASCII para os dados do eSpeak no Windows
+  > quando o projeto está instalado em um caminho Unicode, contornando o defeito descrito em T002.
+- [X] T021 [P] Adicionar o teste de integração real (FFmpeg/Piper), seguindo o mesmo padrão de
   guarda de disponibilidade já usado em `backend/tests/integration/test_audio_pipeline.py`, para o
   fluxo completo criar → buscar áudio → buscar timeline via API, em
   `backend/tests/integration/test_studies_api.py`
-  > **Bloqueada** pelo mesmo motivo de T020: o guard de disponibilidade (`FFmpeg` + arquivos de voz
-  > presentes) passaria nesta máquina, mas a síntese real ainda derrubaria o processo — o teste não
-  > poderia ser validado como verde. Não escrita nesta sessão; retomar após corrigir o `piper-tts`.
-- [ ] T022 Verificar o quickstart.md §4 — confirmar que nenhum diretório temporário `tts_phase3_*`
+  > O teste real cobre criação, download do MP3 publicado e recuperação da timeline.
+- [X] T022 Verificar o quickstart.md §4 — confirmar que nenhum diretório temporário `tts_phase3_*`
   permanece após exercitar os caminhos de sucesso e de falha através da API
-  > **Bloqueada** pelo mesmo motivo de T020 (requer síntese real bem-sucedida para exercitar o
-  > caminho de sucesso ponta a ponta).
+  > Os caminhos real de sucesso e controlado de falha são cobertos pela integração; nenhum resíduo
+  > foi encontrado em `backend/temp` nem no diretório temporário do sistema.
 
 ---
 
