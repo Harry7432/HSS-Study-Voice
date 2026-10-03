@@ -302,3 +302,139 @@ def test_synchronized_pipeline_produces_exact_sentence_timeline(
     )
     assert timeline_chunk["start_sample"] == 0
     assert timeline_chunk["end_sample"] == recording_concatenator.merged_frame_count
+
+
+def test_synchronized_pipeline_supports_multiple_chunks_and_fragmented_sentence(
+    tmp_path,
+):
+    """Real Piper/FFmpeg flow supports multi-chunk documents with sentence fragments."""
+    from app.services.text.chunker import TextChunker
+
+    pipeline = TextPreprocessingPipeline(chunker=TextChunker(max_chars=60))
+    raw_text = (
+        "Primeira frase do primeiro chunk.\n\n"
+        "Esta é uma frase deliberadamente longa que excede o limite máximo de sessenta "
+        "caracteres por fragmento para forçar a criação de múltiplos fragmentos de síntese."
+    )
+    document = pipeline.prepare(raw_text)
+
+    assert len(document.chunks) >= 2
+    fragmented_sentences = [
+        sentence
+        for chunk in document.chunks
+        for sentence in chunk.sentences
+        if len(sentence.fragments) > 1
+    ]
+    assert len(fragmented_sentences) >= 1
+
+    recording_concatenator = _RecordingConcatenator()
+    orchestrator = AudioOrchestrator(concatenator=recording_concatenator)
+    output_mp3 = tmp_path / "multi_chunk_timeline.mp3"
+
+    result = orchestrator.generate_synchronized(
+        document=document,
+        output_path=output_mp3,
+        voice=settings.DEFAULT_VOICE,
+        speed=1.0,
+    )
+
+    expected_timeline_path = tmp_path / "multi_chunk_timeline.timeline.json"
+    assert result.output_path == output_mp3.resolve()
+    assert result.timeline_path == expected_timeline_path.resolve()
+    assert output_mp3.is_file()
+    assert expected_timeline_path.is_file()
+
+    timeline = json.loads(expected_timeline_path.read_text(encoding="utf-8"))
+    assert timeline["schema_version"] == 1
+    assert len(timeline["chunks"]) == len(document.chunks)
+
+    all_fragments = [
+        fragment
+        for chunk in document.chunks
+        for sentence in chunk.sentences
+        for fragment in sentence.fragments
+    ]
+    assert recording_concatenator.segment_names == [
+        f"fragment_{idx}.wav" for idx in range(len(all_fragments))
+    ]
+    assert timeline["audio"]["total_samples"] == recording_concatenator.merged_frame_count
+
+    with output_mp3.open("rb") as mp3_file:
+        assert timeline["audio"]["sha256"] == hashlib.file_digest(
+            mp3_file,
+            "sha256",
+        ).hexdigest()
+
+    current_sample = 0
+    fragment_pos = 0
+    for chunk_pos, (prep_chunk, time_chunk) in enumerate(
+        zip(document.chunks, timeline["chunks"], strict=True)
+    ):
+        assert time_chunk["index"] == chunk_pos
+        assert time_chunk["start_sample"] == current_sample
+
+        for sent_pos, (prep_sentence, time_sentence) in enumerate(
+            zip(prep_chunk.sentences, time_chunk["sentences"], strict=True)
+        ):
+            assert time_sentence["index"] == sent_pos
+            assert time_sentence["text"] == prep_sentence.text
+            assert time_sentence["start_sample"] == current_sample
+
+            sent_frames = sum(
+                recording_concatenator.segment_frame_counts[
+                    fragment_pos + f_idx
+                ]
+                for f_idx in range(len(prep_sentence.fragments))
+            )
+            fragment_pos += len(prep_sentence.fragments)
+            current_sample += sent_frames
+            assert time_sentence["end_sample"] == current_sample
+
+        assert time_chunk["end_sample"] == current_sample
+
+    assert current_sample == recording_concatenator.merged_frame_count
+
+
+def test_synchronized_pipeline_regeneration_replaces_existing_pair_and_cleans_up(
+    tmp_path,
+    pipeline,
+    orchestrator,
+):
+    """Regeneration replaces an existing MP3/timeline pair atomically with updated SHA-256 and no residue."""
+    output_mp3 = tmp_path / "regeneration_target.mp3"
+    timeline_json = tmp_path / "regeneration_target.timeline.json"
+
+    doc_v1 = pipeline.prepare("Primeira versão do documento para áudio.")
+    res_v1 = orchestrator.generate_synchronized(
+        document=doc_v1,
+        output_path=output_mp3,
+    )
+
+    assert output_mp3.is_file()
+    assert timeline_json.is_file()
+    v1_mp3_bytes = output_mp3.read_bytes()
+    v1_timeline_content = json.loads(timeline_json.read_text(encoding="utf-8"))
+    v1_sha256 = v1_timeline_content["audio"]["sha256"]
+
+    doc_v2 = pipeline.prepare("Segunda versão do documento com texto completamente diferente e mais longo.")
+    res_v2 = orchestrator.generate_synchronized(
+        document=doc_v2,
+        output_path=output_mp3,
+    )
+
+    assert output_mp3.is_file()
+    assert timeline_json.is_file()
+    v2_mp3_bytes = output_mp3.read_bytes()
+    v2_timeline_content = json.loads(timeline_json.read_text(encoding="utf-8"))
+    v2_sha256 = v2_timeline_content["audio"]["sha256"]
+
+    assert v2_mp3_bytes != v1_mp3_bytes
+    assert v2_sha256 != v1_sha256
+    with output_mp3.open("rb") as mp3_f:
+        assert v2_sha256 == hashlib.file_digest(mp3_f, "sha256").hexdigest()
+    assert v2_timeline_content["chunks"][0]["sentences"][0]["text"] != v1_timeline_content["chunks"][0]["sentences"][0]["text"]
+
+    stray_files = [p.name for p in tmp_path.iterdir() if p.name.startswith(".")]
+    assert not stray_files, f"Staging or backup residue left in destination: {stray_files}"
+
+

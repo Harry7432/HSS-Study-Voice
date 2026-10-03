@@ -147,3 +147,84 @@ def test_chunk_preserves_custom_limit_above_synthesis_limit():
     text = "x" * max_chars
 
     assert chunker.chunk(text) == [text]
+
+
+# ------------------------------------------------------------------ #
+# T015: Multi-chunk packing and sentence identity tests (US2)        #
+# ------------------------------------------------------------------ #
+
+def test_prepare_chunks_packs_multiple_chunks_with_zero_based_indices():
+    max_chars = 100
+    chunker = make_chunker(max_chars=max_chars, min_chars=5)
+    text = " ".join([f"Frase número {i}." for i in range(1, 20)])
+    chunks = chunker.prepare_chunks(text)
+
+    assert isinstance(chunks, tuple)
+    assert len(chunks) > 1
+    for position, chunk in enumerate(chunks):
+        assert chunk.index == position
+        assert len(chunk.sentences) > 0
+        for s_pos, sentence in enumerate(chunk.sentences):
+            assert sentence.index == s_pos
+        assert chunk.text == " ".join(s.text for s in chunk.sentences)
+        assert len(chunk.text) <= max_chars
+
+
+def test_prepare_chunks_respects_paragraph_boundaries():
+    chunker = make_chunker(max_chars=500, min_chars=5)
+    para1 = "Primeiro parágrafo com conteúdo suficiente."
+    para2 = "Segundo parágrafo com conteúdo diferente."
+    text = f"{para1}\n\n{para2}"
+    chunks = chunker.prepare_chunks(text)
+
+    assert len(chunks) == 2
+    assert chunks[0].index == 0
+    assert chunks[1].index == 1
+    assert chunks[0].text == para1
+    assert chunks[1].text == para2
+    assert [s.text for s in chunks[0].sentences] == [para1]
+    assert [s.text for s in chunks[1].sentences] == [para2]
+    assert chunks[0].sentences[0].index == 0
+    assert chunks[1].sentences[0].index == 0
+
+
+def test_prepare_chunks_retains_single_sentence_identity_across_internal_fragments():
+    max_chars = 40
+    chunker = make_chunker(max_chars=max_chars, min_chars=5)
+    oversized = "Esta é uma frase deliberadamente longa para exceder o limite de caracteres de síntese."
+    text = f"Frase introdutória. {oversized} Frase final."
+    chunks = chunker.prepare_chunks(text)
+
+    assert len(chunks) > 1
+    all_sentences = [s for c in chunks for s in c.sentences]
+    matching = [s for s in all_sentences if s.text == oversized]
+    assert len(matching) == 1
+    sentence = matching[0]
+    assert len(sentence.fragments) > 1
+    assert [f.index for f in sentence.fragments] == list(range(len(sentence.fragments)))
+    reconstructed = " ".join(f.text for f in sentence.fragments)
+    assert reconstructed == oversized
+
+
+def test_prepare_chunks_preserves_repeated_sentence_identity_across_different_chunks():
+    chunker = make_chunker(max_chars=500, min_chars=5)
+    text = "Frase idêntica.\n\nFrase idêntica."
+    chunks = chunker.prepare_chunks(text)
+
+    assert len(chunks) == 2
+    assert chunks[0].index == 0
+    assert chunks[1].index == 1
+    s0 = chunks[0].sentences[0]
+    s1 = chunks[1].sentences[0]
+    assert s0.text == s1.text == "Frase idêntica."
+    assert s0.index == 0
+    assert s1.index == 0
+    assert s0 is not s1
+
+
+def test_prepare_chunks_empty_input_returns_empty_tuple():
+    chunker = make_chunker()
+    assert chunker.prepare_chunks("") == ()
+    assert chunker.prepare_chunks("   ") == ()
+    assert chunker.prepare_chunks("\n\n\n") == ()
+

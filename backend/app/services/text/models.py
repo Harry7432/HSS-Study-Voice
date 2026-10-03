@@ -92,10 +92,14 @@ class PreparedChunk:
         sentences = tuple(self.sentences)
         if not sentences:
             raise ValueError("PreparedChunk.sentences must be non-empty")
-        for sentence in sentences:
+        for position, sentence in enumerate(sentences):
             if not isinstance(sentence, PreparedSentence):
                 raise TypeError(
                     "PreparedChunk.sentences must contain PreparedSentence values"
+                )
+            if sentence.index != position:
+                raise ValueError(
+                    "PreparedSentence.index must equal its collection position"
                 )
         object.__setattr__(self, "sentences", sentences)
 
@@ -115,9 +119,13 @@ class PreparedDocument:
         chunks = tuple(self.chunks)
         if not chunks:
             raise ValueError("PreparedDocument.chunks must be non-empty")
-        for chunk in chunks:
+        for position, chunk in enumerate(chunks):
             if not isinstance(chunk, PreparedChunk):
                 raise TypeError(
                     "PreparedDocument.chunks must contain PreparedChunk values"
+                )
+            if chunk.index != position:
+                raise ValueError(
+                    "PreparedChunk.index must equal its collection position"
                 )
         object.__setattr__(self, "chunks", chunks)

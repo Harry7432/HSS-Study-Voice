@@ -10,7 +10,11 @@ import re
 from typing import Optional
 
 from app.core.config import settings
-from app.services.text.models import PreparedSentence, SynthesisFragment
+from app.services.text.models import (
+    PreparedChunk,
+    PreparedSentence,
+    SynthesisFragment,
+)
 
 
 class TextChunker:
@@ -103,6 +107,100 @@ class TextChunker:
                 )
             )
         return tuple(prepared)
+
+    def prepare_chunks(self, text: str) -> tuple[PreparedChunk, ...]:
+        """Pack normalized text into prepared chunks of logical sentences.
+
+        Respects paragraph boundaries (double newlines) as hard chunk breaks,
+        accumulates sentences up to ``_max_chars`` per chunk, and keeps
+        oversized sentences as single logical sentences with internal fragments.
+        """
+        if not text or not text.strip():
+            return ()
+
+        fragment_limit = min(self._max_chars, settings.MAX_CHUNK_CHARS)
+        raw_paragraphs = re.split(r"\n\n+", text.strip())
+
+        chunk_sentences_lists: list[list[PreparedSentence]] = []
+
+        for para in raw_paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+
+            para_sentence_texts = [
+                part.strip()
+                for part in self._RE_SENTENCE_SPLIT.split(para)
+                if part.strip()
+            ]
+            if not para_sentence_texts:
+                continue
+
+            current_sentences: list[PreparedSentence] = []
+            current_len = 0
+
+            for stext in para_sentence_texts:
+                if len(stext) > fragment_limit:
+                    frag_texts = self._split_by_word_boundary(
+                        stext, max_chars=fragment_limit
+                    )
+                else:
+                    frag_texts = [stext]
+
+                fragments = tuple(
+                    SynthesisFragment(index=idx, text=ft)
+                    for idx, ft in enumerate(frag_texts)
+                )
+
+                sentence_obj = PreparedSentence(
+                    index=0,
+                    text=stext,
+                    fragments=fragments,
+                )
+
+                if len(stext) > self._max_chars:
+                    if current_sentences:
+                        chunk_sentences_lists.append(current_sentences)
+                        current_sentences = []
+                        current_len = 0
+                    chunk_sentences_lists.append([sentence_obj])
+                    continue
+
+                needed = (
+                    len(stext)
+                    if not current_sentences
+                    else current_len + 1 + len(stext)
+                )
+
+                if needed > self._max_chars and current_sentences:
+                    chunk_sentences_lists.append(current_sentences)
+                    current_sentences = [sentence_obj]
+                    current_len = len(stext)
+                else:
+                    current_sentences.append(sentence_obj)
+                    current_len = needed
+
+            if current_sentences:
+                chunk_sentences_lists.append(current_sentences)
+
+        prepared_chunks: list[PreparedChunk] = []
+        for chunk_idx, sentences in enumerate(chunk_sentences_lists):
+            reindexed_sentences = tuple(
+                PreparedSentence(
+                    index=s_idx,
+                    text=s.text,
+                    fragments=s.fragments,
+                )
+                for s_idx, s in enumerate(sentences)
+            )
+            prepared_chunks.append(
+                PreparedChunk(
+                    index=chunk_idx,
+                    sentences=reindexed_sentences,
+                )
+            )
+
+        return tuple(prepared_chunks)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #

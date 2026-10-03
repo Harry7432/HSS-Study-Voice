@@ -410,3 +410,320 @@ def test_generate_synchronized_exports_one_mp3_and_returns_timeline_path(
     assert events == ["render", "concatenate", "export"]
     assert result.timeline_path == (tmp_path / "lesson.timeline.json").resolve()
     assert result.timeline_path.is_file()
+
+
+def _make_multi_chunk_prepared_document() -> _PreparedDocument:
+    return _PreparedDocument(
+        chunks=(
+            _PreparedChunk(
+                index=0,
+                sentences=(
+                    _PreparedSentence(
+                        index=0,
+                        text="Primeiro chunk primeira frase.",
+                        fragments=(
+                            _PreparedFragment(index=0, text="Primeiro chunk"),
+                            _PreparedFragment(index=1, text="primeira frase."),
+                        ),
+                    ),
+                    _PreparedSentence(
+                        index=1,
+                        text="Primeiro chunk segunda frase.",
+                        fragments=(
+                            _PreparedFragment(index=0, text="Primeiro chunk segunda frase."),
+                        ),
+                    ),
+                ),
+            ),
+            _PreparedChunk(
+                index=1,
+                sentences=(
+                    _PreparedSentence(
+                        index=0,
+                        text="Segundo chunk frase unica.",
+                        fragments=(
+                            _PreparedFragment(index=0, text="Segundo chunk frase unica."),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def test_generate_synchronized_supports_multiple_chunks_and_fragmented_sentences(
+    tmp_path,
+    wav_builder,
+):
+    frame_counts = (7, 11, 13, 17)
+    rendered_paths = [
+        tmp_path / f"fragment_{index}.wav"
+        for index in range(len(frame_counts))
+    ]
+
+    renderer = MagicMock()
+
+    def _fake_render_fragments(*, fragments, voice, speed, temp_dir):
+        del fragments, voice, speed
+        paths = []
+        for path, frame_count in zip(rendered_paths, frame_counts, strict=True):
+            paths.append(
+                wav_builder(
+                    Path(temp_dir) / path.name,
+                    frame_count=frame_count,
+                )
+            )
+        return paths
+
+    renderer.render_fragments.side_effect = _fake_render_fragments
+
+    concatenator = MagicMock()
+
+    def _fake_concatenate(wavs, output_path):
+        assert [path.name for path in wavs] == [path.name for path in rendered_paths]
+        return wav_builder(
+            output_path,
+            frame_count=sum(frame_counts),
+        )
+
+    concatenator.concatenate.side_effect = _fake_concatenate
+
+    exporter = MagicMock()
+
+    def _fake_export(wav_path, output_path, bitrate=None):
+        del wav_path, bitrate
+        output_path.write_bytes(b"ID3-multi-chunk")
+        return output_path
+
+    exporter.export.side_effect = _fake_export
+
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+    doc = _make_multi_chunk_prepared_document()
+    output_path = tmp_path / "multi_chunk_lesson.mp3"
+
+    result = orchestrator.generate_synchronized(
+        document=doc,
+        output_path=output_path,
+    )
+
+    assert result.chunks_count == 2
+    assert result.timeline_path == (tmp_path / "multi_chunk_lesson.timeline.json").resolve()
+    assert result.timeline_path.is_file()
+
+    timeline = json.loads(result.timeline_path.read_text(encoding="utf-8"))
+    assert timeline["audio"]["total_samples"] == 48
+    assert len(timeline["chunks"]) == 2
+
+    chunk_0 = timeline["chunks"][0]
+    assert chunk_0["index"] == 0
+    assert chunk_0["start_sample"] == 0
+    assert chunk_0["end_sample"] == 31
+    assert [
+        (s["index"], s["start_sample"], s["end_sample"])
+        for s in chunk_0["sentences"]
+    ] == [(0, 0, 18), (1, 18, 31)]
+
+    chunk_1 = timeline["chunks"][1]
+    assert chunk_1["index"] == 1
+    assert chunk_1["start_sample"] == 31
+    assert chunk_1["end_sample"] == 48
+    assert [
+        (s["index"], s["start_sample"], s["end_sample"])
+        for s in chunk_1["sentences"]
+    ] == [(0, 31, 48)]
+
+
+def test_generate_synchronized_pre_commit_failure_preserves_prior_state(
+    tmp_path,
+    wav_builder,
+):
+    output_mp3 = tmp_path / "lesson.mp3"
+    output_timeline = tmp_path / "lesson.timeline.json"
+    output_mp3.write_bytes(b"prior_mp3_content")
+    output_timeline.write_bytes(b"prior_timeline_content")
+
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    exporter.export.side_effect = RuntimeError("Export failed in pre-commit")
+
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    with pytest.raises(RuntimeError, match="Export failed"):
+        orchestrator.generate_synchronized(
+            document=_make_prepared_document(),
+            output_path=output_mp3,
+        )
+
+    assert output_mp3.read_bytes() == b"prior_mp3_content"
+    assert output_timeline.read_bytes() == b"prior_timeline_content"
+    remaining_files = [p.name for p in tmp_path.iterdir() if p.name.startswith(".")]
+    assert not remaining_files, f"Staging or backup files leaked: {remaining_files}"
+
+
+def test_generate_synchronized_first_replace_failure_rolls_back_prior_state(
+    tmp_path,
+    wav_builder,
+):
+    output_mp3 = tmp_path / "lesson.mp3"
+    output_timeline = tmp_path / "lesson.timeline.json"
+    output_mp3.write_bytes(b"prior_mp3_content")
+    output_timeline.write_bytes(b"prior_timeline_content")
+
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    original_replace = Path.replace
+
+    def _failing_replace(self_path, target_path):
+        src = Path(self_path)
+        if Path(target_path) == output_mp3 and ".tmp" in src.name:
+            raise OSError("First replace (MP3) failed")
+        return original_replace(self_path, target_path)
+
+    with patch.object(Path, "replace", autospec=True, side_effect=_failing_replace):
+        with pytest.raises(OSError, match="First replace"):
+            orchestrator.generate_synchronized(
+                document=_make_prepared_document(),
+                output_path=output_mp3,
+            )
+
+    assert output_mp3.read_bytes() == b"prior_mp3_content"
+    assert output_timeline.read_bytes() == b"prior_timeline_content"
+
+
+def test_generate_synchronized_second_replace_failure_compensating_rollback_restores_prior_state(
+    tmp_path,
+    wav_builder,
+):
+    output_mp3 = tmp_path / "lesson.mp3"
+    output_timeline = tmp_path / "lesson.timeline.json"
+    output_mp3.write_bytes(b"prior_mp3_content")
+    output_timeline.write_bytes(b"prior_timeline_content")
+
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    original_replace = Path.replace
+
+    def _failing_second_replace(self_path, target_path):
+        src = Path(self_path)
+        if Path(target_path) == output_timeline and ".tmp" in src.name:
+            raise OSError("Second replace (Timeline) failed")
+        return original_replace(self_path, target_path)
+
+
+    with patch.object(Path, "replace", autospec=True, side_effect=_failing_second_replace):
+        with pytest.raises(OSError, match="Second replace"):
+            orchestrator.generate_synchronized(
+                document=_make_prepared_document(),
+                output_path=output_mp3,
+            )
+
+    assert output_mp3.read_bytes() == b"prior_mp3_content"
+    assert output_timeline.read_bytes() == b"prior_timeline_content"
+
+
+def test_generate_synchronized_second_replace_failure_without_prior_state_removes_partial_mp3(
+    tmp_path,
+    wav_builder,
+):
+    output_mp3 = tmp_path / "lesson.mp3"
+    output_timeline = tmp_path / "lesson.timeline.json"
+
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    original_replace = Path.replace
+
+    def _failing_second_replace(self_path, target_path):
+        if Path(target_path) == output_timeline:
+            raise OSError("Second replace (Timeline) failed without prior state")
+        return original_replace(self_path, target_path)
+
+    with patch.object(Path, "replace", autospec=True, side_effect=_failing_second_replace):
+        with pytest.raises(OSError, match="Second replace"):
+            orchestrator.generate_synchronized(
+                document=_make_prepared_document(),
+                output_path=output_mp3,
+            )
+
+    assert not output_mp3.exists()
+    assert not output_timeline.exists()
+
+
+def test_generate_synchronized_rollback_failure_retains_recovery_backups(
+    tmp_path,
+    wav_builder,
+):
+    from app.services.audio.orchestrator import AudioRollbackError
+
+    output_mp3 = tmp_path / "lesson.mp3"
+    output_timeline = tmp_path / "lesson.timeline.json"
+    output_mp3.write_bytes(b"prior_mp3_content")
+    output_timeline.write_bytes(b"prior_timeline_content")
+
+    renderer, concatenator, exporter, _ = _make_synchronized_mock_trio(
+        tmp_path,
+        wav_builder,
+    )
+    orchestrator = AudioOrchestrator(
+        renderer=renderer,
+        concatenator=concatenator,
+        exporter=exporter,
+    )
+
+    original_replace = Path.replace
+
+    def _triple_failing_replace(self_path, target_path):
+        target = Path(target_path)
+        src = Path(self_path)
+        if target == output_timeline and not ".bak" in src.name:
+            raise OSError("Second replace (Timeline) failed")
+        if target == output_mp3 and ".bak" in src.name:
+            raise OSError("Rollback replace failed")
+        return original_replace(self_path, target_path)
+
+
+    with patch.object(Path, "replace", autospec=True, side_effect=_triple_failing_replace):
+        with pytest.raises(AudioRollbackError) as exc_info:
+            orchestrator.generate_synchronized(
+                document=_make_prepared_document(),
+                output_path=output_mp3,
+            )
+
+    assert "rollback" in str(exc_info.value).lower()
+    retained_backups = [p for p in tmp_path.iterdir() if ".bak" in p.name]
+    assert len(retained_backups) > 0, "Backups should be retained when rollback fails"
+
+

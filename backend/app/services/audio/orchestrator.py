@@ -15,6 +15,7 @@ import hashlib
 import logging
 import tempfile
 import time
+import uuid
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,15 +31,26 @@ from app.services.audio.timeline import (
     TimelineChunk,
     TimelineDocument,
     TimelineSentence,
+    compute_sha256,
     timeline_path_for,
+    verify_mp3_sha256,
 )
 from app.services.text.models import PreparedDocument
 
 logger = logging.getLogger(__name__)
 
 
+class AudioPublicationError(Exception):
+    """Raised when publishing the MP3 and timeline pair fails."""
+
+
+class AudioRollbackError(Exception):
+    """Raised when publication fails and compensating rollback also fails."""
+
+
 @dataclass
 class AudioResult:
+
     """Metadata returned by :meth:`AudioOrchestrator.generate_mp3`.
 
     Attributes:
@@ -179,21 +191,23 @@ class AudioOrchestrator:
         speed: Optional[float] = None,
         bitrate: Optional[str] = None,
     ) -> AudioResult:
-        """Generate one MP3 and its exact sentence timeline for one prepared chunk."""
-        if len(document.chunks) != 1:
-            raise ValueError(
-                "Synchronized generation currently requires exactly one prepared chunk"
-            )
-
+        """Generate one MP3 and its exact sentence timeline for prepared chunks."""
         effective_voice = voice or settings.DEFAULT_VOICE
         effective_speed = speed if speed is not None else settings.DEFAULT_SPEED
         effective_bitrate = bitrate or settings.MP3_BITRATE
-        output_path = Path(output_path)
-        timeline_path = timeline_path_for(output_path)
+        output_path = Path(output_path).resolve()
+        timeline_path = timeline_path_for(output_path).resolve()
+        destination_dir = output_path.parent
+        destination_dir.mkdir(parents=True, exist_ok=True)
+
+        session_id = uuid.uuid4().hex
+        staged_mp3 = destination_dir / f".{output_path.stem}.{session_id}.tmp.mp3"
+        staged_timeline = destination_dir / f".{output_path.stem}.{session_id}.tmp.timeline.json"
+
         start_time = time.perf_counter()
-        prepared_chunk = document.chunks[0]
         fragments = [
             fragment
+            for prepared_chunk in document.chunks
             for sentence in prepared_chunk.sentences
             for fragment in sentence.fragments
         ]
@@ -261,26 +275,36 @@ class AudioOrchestrator:
 
             self._exporter.export(
                 wav_path=merged_wav,
-                output_path=output_path,
+                output_path=staged_mp3,
                 bitrate=effective_bitrate,
             )
-            with output_path.open("rb") as mp3_file:
-                mp3_sha256 = hashlib.file_digest(mp3_file, "sha256").hexdigest()
+            mp3_sha256 = compute_sha256(staged_mp3)
 
             offset = 0
             frame_position = 0
-            timeline_sentences: list[TimelineSentence] = []
-            for sentence in prepared_chunk.sentences:
-                sentence_start = offset
-                for _ in sentence.fragments:
-                    offset += frame_counts[frame_position]
-                    frame_position += 1
-                timeline_sentences.append(
-                    TimelineSentence(
-                        index=sentence.index,
-                        text=sentence.text,
-                        start_sample=sentence_start,
+            timeline_chunks: list[TimelineChunk] = []
+            for prepared_chunk in document.chunks:
+                chunk_start = offset
+                timeline_sentences: list[TimelineSentence] = []
+                for sentence in prepared_chunk.sentences:
+                    sentence_start = offset
+                    for _ in sentence.fragments:
+                        offset += frame_counts[frame_position]
+                        frame_position += 1
+                    timeline_sentences.append(
+                        TimelineSentence(
+                            index=sentence.index,
+                            text=sentence.text,
+                            start_sample=sentence_start,
+                            end_sample=offset,
+                        )
+                    )
+                timeline_chunks.append(
+                    TimelineChunk(
+                        index=prepared_chunk.index,
+                        start_sample=chunk_start,
                         end_sample=offset,
+                        sentences=tuple(timeline_sentences),
                     )
                 )
 
@@ -292,20 +316,94 @@ class AudioOrchestrator:
                     sample_rate_hz=SAMPLE_RATE_HZ,
                     total_samples=merged_frame_count,
                 ),
-                chunks=(
-                    TimelineChunk(
-                        index=prepared_chunk.index,
-                        start_sample=0,
-                        end_sample=merged_frame_count,
-                        sentences=tuple(timeline_sentences),
-                    ),
-                ),
+                chunks=tuple(timeline_chunks),
             )
             timeline.write(
-                timeline_path,
+                staged_timeline,
                 merged_frame_count=merged_frame_count,
             )
+
+            if not verify_mp3_sha256(staged_mp3, mp3_sha256):
+                raise ValueError("Staged MP3 SHA-256 verification failed")
+
+            backup_mp3 = destination_dir / f".{output_path.name}.{session_id}.bak"
+            backup_timeline = destination_dir / f".{timeline_path.name}.{session_id}.bak"
+            backed_up_mp3 = False
+            backed_up_timeline = False
+            replaced_mp3 = False
+            replaced_timeline = False
+
+            try:
+                if output_path.exists():
+                    output_path.replace(backup_mp3)
+                    backed_up_mp3 = True
+                if timeline_path.exists():
+                    timeline_path.replace(backup_timeline)
+                    backed_up_timeline = True
+
+                staged_mp3.replace(output_path)
+                replaced_mp3 = True
+
+                staged_timeline.replace(timeline_path)
+                replaced_timeline = True
+
+                if backed_up_mp3 and backup_mp3.exists():
+                    backup_mp3.unlink(missing_ok=True)
+                if backed_up_timeline and backup_timeline.exists():
+                    backup_timeline.unlink(missing_ok=True)
+
+            except Exception as pub_exc:
+                logger.error("Publication failed (%s); initiating compensating rollback.", pub_exc)
+                rollback_failed = False
+                rollback_errors: list[Exception] = []
+
+                if replaced_mp3 or backed_up_mp3:
+                    try:
+                        if backed_up_mp3:
+                            backup_mp3.replace(output_path)
+                        else:
+                            if output_path.exists():
+                                output_path.unlink()
+                    except Exception as r_exc:
+                        rollback_failed = True
+                        rollback_errors.append(r_exc)
+
+                if replaced_timeline or backed_up_timeline:
+                    try:
+                        if backed_up_timeline:
+                            backup_timeline.replace(timeline_path)
+                        else:
+                            if timeline_path.exists():
+                                timeline_path.unlink()
+                    except Exception as r_exc:
+                        rollback_failed = True
+                        rollback_errors.append(r_exc)
+
+
+                if rollback_failed:
+                    retained_backups: list[str] = []
+                    if backup_mp3.exists():
+                        retained_backups.append(str(backup_mp3))
+                    if backup_timeline.exists():
+                        retained_backups.append(str(backup_timeline))
+                    raise AudioRollbackError(
+                        f"Publication failed ({pub_exc}) AND compensating rollback failed ({rollback_errors}). "
+                        f"Retained recovery backups: {retained_backups}"
+                    ) from pub_exc
+
+                raise pub_exc
+
         finally:
+            if staged_mp3.exists():
+                try:
+                    staged_mp3.unlink()
+                except Exception:
+                    pass
+            if staged_timeline.exists():
+                try:
+                    staged_timeline.unlink()
+                except Exception:
+                    pass
             self._cleanup_temp_dir(tmp_dir)
 
         elapsed = time.perf_counter() - start_time
@@ -317,6 +415,7 @@ class AudioOrchestrator:
             processing_time_seconds=round(elapsed, 3),
             timeline_path=timeline_path.resolve(),
         )
+
 
     # ------------------------------------------------------------------ #
 

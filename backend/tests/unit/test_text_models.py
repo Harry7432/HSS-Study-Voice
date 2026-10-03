@@ -78,6 +78,13 @@ def test_prepared_models_reject_empty_collections_and_text(factory):
             text="Frase.",
             fragments=(SynthesisFragment(index=1, text="Frase."),),
         ),
+        lambda: PreparedChunk(
+            index=0,
+            sentences=(_sentence(index=1),),
+        ),
+        lambda: PreparedDocument(
+            chunks=(_chunk(index=1),),
+        ),
     ],
 )
 def test_prepared_models_reject_invalid_positional_indices(factory):

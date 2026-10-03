@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -16,7 +17,23 @@ MAX_SAFE_INTEGER = 9007199254740991
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
+def compute_sha256(path: Path) -> str:
+    """Calculate and return the lowercase SHA-256 hex digest of a file."""
+    with Path(path).open("rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
+
+
+def verify_mp3_sha256(mp3_path: Path, expected_sha256: str) -> bool:
+    """Return True if mp3_path exists and its SHA-256 matches expected_sha256."""
+    p = Path(mp3_path)
+    if not p.is_file():
+        return False
+    digest = compute_sha256(p)
+    return digest == expected_sha256.lower()
+
+
 def _validate_integer(value: object, field_name: str, *, minimum: int = 0) -> None:
+
     if (
         isinstance(value, bool)
         or not isinstance(value, int)
@@ -131,6 +148,10 @@ class TimelineChunk:
             raise ValueError("TimelineChunk.sentences must be non-empty")
         if self.start_sample != expected_start:
             raise ValueError("Timeline chunks must form contiguous ranges")
+        if self.start_sample != self.sentences[0].start_sample:
+            raise ValueError(
+                "TimelineChunk.start_sample must equal its first sentence start"
+            )
 
         next_start = self.start_sample
         for position, sentence in enumerate(self.sentences):

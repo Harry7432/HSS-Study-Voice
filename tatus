@@ -1,0 +1,25 @@
+warning: in the working copy of 'backend/app/services/audio/orchestrator.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/audio/timeline.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/text/chunker.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/text/models.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/text/pipeline.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/integration/test_audio_pipeline.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/unit/test_audio_orchestrator.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/unit/test_chunker.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/unit/test_pipeline.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/unit/test_text_models.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/unit/test_timeline.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'specs/001-text-audio-timeline/tasks.md', LF will be replaced by CRLF the next time Git touches it
+ backend/app/services/audio/orchestrator.py       | 163 [32m++++++[m[31m--[m
+ backend/app/services/audio/timeline.py           |  21 [32m+[m
+ backend/app/services/text/chunker.py             | 100 [32m++++[m[31m-[m
+ backend/app/services/text/models.py              |  12 [32m+[m[31m-[m
+ backend/app/services/text/pipeline.py            |   6 [32m+[m[31m-[m
+ backend/tests/integration/test_audio_pipeline.py | 136 [32m++++++[m
+ backend/tests/unit/test_audio_orchestrator.py    | 317 [32m++++++++++++++[m
+ backend/tests/unit/test_chunker.py               |  81 [32m++++[m
+ backend/tests/unit/test_pipeline.py              | 106 [32m+++++[m
+ backend/tests/unit/test_text_models.py           |   7 [32m+[m
+ backend/tests/unit/test_timeline.py              | 500 [32m+++++++++++++++++++++++[m
+ specs/001-text-audio-timeline/tasks.md           |  14 [32m+[m[31m-[m
+ 12 files changed, 1417 insertions(+), 46 deletions(-)

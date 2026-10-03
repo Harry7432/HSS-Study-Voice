@@ -81,16 +81,16 @@ and last child boundaries.
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] Add failing tests for multi-chunk ordering, zero-based chunk/sentence indices, repeated sentence text, and aggregate chunk limits in `backend/tests/unit/test_timeline.py`
-- [ ] T015 [P] [US2] Add failing tests for multi-chunk packing and one logical sentence retaining identity across internal fragments in `backend/tests/unit/test_chunker.py` and `backend/tests/unit/test_pipeline.py`
+- [x] T014 [P] [US2] Add failing tests for multi-chunk ordering, zero-based chunk/sentence indices, repeated sentence text, and aggregate chunk limits in `backend/tests/unit/test_timeline.py`
+- [x] T015 [P] [US2] Add failing tests for multi-chunk packing and one logical sentence retaining identity across internal fragments in `backend/tests/unit/test_chunker.py` and `backend/tests/unit/test_pipeline.py`
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Enforce `PreparedChunk.index` and `PreparedSentence.index` equality with collection position and keep every prepared chunk/sentence collection non-empty in `backend/app/services/text/models.py`
-- [ ] T017 [US2] Implement sentence-aware chunk packing and fragment-to-parent mapping in `backend/app/services/text/chunker.py` and expose it through `backend/app/services/text/pipeline.py`
-- [ ] T018 [US2] Implement ordered `TimelineChunk` aggregation in `backend/app/services/audio/timeline.py` so each chunk starts at its first sentence, ends at its last sentence, and begins where the prior chunk ends
-- [ ] T019 [US2] Preserve chunk/sentence/fragment positional mappings through rendering and frame accumulation in `backend/app/services/audio/orchestrator.py`
-- [ ] T020 [US2] Extend the real pipeline integration scenario to multiple chunks and a fragmented logical sentence in `backend/tests/integration/test_audio_pipeline.py`
+- [x] T016 [US2] Enforce `PreparedChunk.index` and `PreparedSentence.index` equality with collection position and keep every prepared chunk/sentence collection non-empty in `backend/app/services/text/models.py`
+- [x] T017 [US2] Implement sentence-aware chunk packing and fragment-to-parent mapping in `backend/app/services/text/chunker.py` and expose it through `backend/app/services/text/pipeline.py`
+- [x] T018 [US2] Implement ordered `TimelineChunk` aggregation in `backend/app/services/audio/timeline.py` so each chunk starts at its first sentence, ends at its last sentence, and begins where the prior chunk ends
+- [x] T019 [US2] Preserve chunk/sentence/fragment positional mappings through rendering and frame accumulation in `backend/app/services/audio/orchestrator.py`
+- [x] T020 [US2] Extend the real pipeline integration scenario to multiple chunks and a fragmented logical sentence in `backend/tests/integration/test_audio_pipeline.py`
 
 **Checkpoint**: User Stories 1 and 2 produce a complete hierarchical timeline and remain independently testable.
 

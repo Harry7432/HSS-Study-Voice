@@ -50,7 +50,5 @@ class TextPreprocessingPipeline:
     def prepare(self, raw_text: str) -> PreparedDocument:
         """Normalize text and preserve its canonical sentence structure."""
         normalized = self.normalizer.normalize(raw_text)
-        sentences = self.chunker.prepare_sentences(normalized)
-        return PreparedDocument(
-            chunks=(PreparedChunk(index=0, sentences=sentences),),
-        )
+        chunks = self.chunker.prepare_chunks(normalized)
+        return PreparedDocument(chunks=chunks)
