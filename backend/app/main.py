@@ -1,5 +1,6 @@
 import shutil
 from fastapi import FastAPI
+from app.api.routes import studies
 from app.core.config import settings
 
 app = FastAPI(
@@ -7,6 +8,8 @@ app = FastAPI(
     version=settings.VERSION,
     description="Local Text-to-Speech system for study materials."
 )
+
+app.include_router(studies.router)
 
 
 @app.get("/health", tags=["Health"])

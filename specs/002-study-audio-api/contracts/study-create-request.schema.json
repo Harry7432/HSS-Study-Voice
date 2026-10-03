@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hss-study-voice.local/schemas/study-create-request.schema.json",
+  "title": "Study Create Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text"],
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200000,
+      "$comment": "maxLength mirrors settings.MAX_REQUEST_TEXT_CHARS (research.md #4). Whitespace-only text is rejected by application validation beyond this schema."
+    },
+    "voice": {
+      "type": ["string", "null"],
+      "default": null
+    },
+    "speed": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0,
+      "default": null
+    },
+    "bitrate": {
+      "type": ["string", "null"],
+      "default": null
+    }
+  }
+}

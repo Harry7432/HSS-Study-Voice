@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hss-study-voice.local/schemas/study-create-response.schema.json",
+  "title": "Study Create Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "study_id",
+    "chunks_count",
+    "duration_seconds",
+    "file_size_bytes",
+    "processing_time_seconds"
+  ],
+  "properties": {
+    "study_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "chunks_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "file_size_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "processing_time_seconds": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

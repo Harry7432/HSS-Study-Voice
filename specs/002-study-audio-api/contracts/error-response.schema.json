@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hss-study-voice.local/schemas/error-response.schema.json",
+  "title": "Error Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["detail"],
+  "properties": {
+    "detail": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "Short, non-technical message. Never a stack trace, internal path, or the submitted text (FR-011, FR-012)."
+    }
+  }
+}

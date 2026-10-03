@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     MAX_CHUNK_CHARS: int = 500
     MIN_CHUNK_CHARS: int = 20
 
+    # Study API Configuration
+    MAX_REQUEST_TEXT_CHARS: int = 200_000
+
     # Audio Export Configuration
     MP3_BITRATE: str = "192k"
     # Leave FFMPEG_PATH empty to auto-detect via shutil.which("ffmpeg").
