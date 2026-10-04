@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hss-study-voice.local/schemas/study-metadata.schema.json",
+  "title": "StudyMetadata",
+  "description": "Registro leve persistido no store studyMetadata do IndexedDB.",
+  "type": "object",
+  "required": ["studyId", "label", "createdAt", "durationSeconds", "fileSizeBytes", "voice", "speed", "bitrate", "progress"],
+  "properties": {
+    "studyId": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "durationSeconds": { "type": "number", "minimum": 0 },
+    "fileSizeBytes": { "type": "number", "exclusiveMinimum": 0 },
+    "voice": { "type": ["string", "null"] },
+    "speed": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "bitrate": { "type": ["string", "null"] },
+    "progress": {
+      "type": "object",
+      "required": ["positionSeconds", "completed", "updatedAt"],
+      "properties": {
+        "positionSeconds": { "type": "number", "minimum": 0 },
+        "completed": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

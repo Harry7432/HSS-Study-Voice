@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hss-study-voice.local/schemas/study-assets.schema.json",
+  "title": "StudyAssets",
+  "description": "Registro pesado persistido no store studyAssets do IndexedDB.",
+  "type": "object",
+  "required": ["studyId", "audio", "timeline"],
+  "properties": {
+    "studyId": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+    "audio": {
+      "contentEncoding": "binary",
+      "contentMediaType": "audio/mpeg"
+    },
+    "timeline": {
+      "type": "object",
+      "description": "Validada contra 001-text-audio-timeline/contracts/timeline-v1.schema.json antes da persistência."
+    }
+  },
+  "additionalProperties": false
+}
