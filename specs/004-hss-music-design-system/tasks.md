@@ -140,7 +140,7 @@ correção de T011).
   text=True)` sem `encoding` em `backend/app/services/audio/concatenator.py:101-106` e
   `backend/app/services/audio/exporter.py:93-98`, decodificando a saída UTF-8 do FFmpeg como
   `cp1252` — documentado em `research.md` §6
-- [ ] T016 Decidir e, se aprovado, aplicar a correção mínima (`encoding="utf-8", errors="replace"`
+- [X] T016 Decidir e, se aprovado, aplicar a correção mínima (`encoding="utf-8", errors="replace"`
   nas duas chamadas) e confirmar via `npm run test:e2e` que o traceback não aparece mais e que a
   suíte `uv run pytest tests` do backend continua verde
 
