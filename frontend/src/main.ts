@@ -11,6 +11,7 @@ import type {
 } from './library/types'
 import { createLibraryView } from './ui/libraryView'
 import { createLocalPlayer } from './ui/player'
+import { createReadingView } from './ui/readingView'
 import { initThemeToggle } from './ui/theme'
 
 interface AppDependencies {
@@ -75,6 +76,7 @@ export async function mountApp(
             <div class="player-frame">
               <audio controls preload="metadata"></audio>
             </div>
+            <section class="reading-frame" data-reading-view aria-label="Texto sincronizado"></section>
           </section>
         </section>
         <section data-library aria-label="Biblioteca local"></section>
@@ -109,6 +111,14 @@ export async function mountApp(
       status.textContent = message
     },
   })
+  // readingView must be created *after* player above: player's own loadedmetadata handler
+  // corrects audio.currentTime to the saved position, and readingView's loadedmetadata
+  // re-sync relies on that already-corrected value (research.md, Decisão 7). addEventListener
+  // fires in registration order for the same event/target, so this ordering is load-bearing.
+  const readingView = createReadingView(
+    root.querySelector<HTMLElement>('[data-reading-view]')!,
+    audio,
+  )
   const openStudy = dependencies.getStudy
   libraryView = createLibraryView(libraryContainer, {
     listStudies: dependencies.listStudies,
@@ -138,6 +148,7 @@ export async function mountApp(
                 generatedStudyId = undefined
               }
               player.open(study)
+              readingView.open(study)
               nowPlayingTitle.textContent = study.label
               nowPlaying.classList.add('is-visible')
               status.dataset.kind = 'success'
@@ -150,7 +161,10 @@ export async function mountApp(
           },
         }),
     onRemoved: (studyId) => {
-      if (player.isOpen(studyId)) player.discard()
+      if (player.isOpen(studyId)) {
+        player.discard()
+        readingView.discard()
+      }
       if (generatedStudyId === studyId && activeObjectUrl !== undefined) {
         dependencies.revokeObjectUrl?.(activeObjectUrl)
         activeObjectUrl = undefined
@@ -183,6 +197,10 @@ export async function mountApp(
         activeObjectUrl = dependencies.createObjectUrl(outcome.result.audio)
         generatedStudyId = outcome.saved ? outcome.result.studyId : undefined
         audio.src = activeObjectUrl
+        readingView.open({
+          timeline: outcome.result.timeline,
+          progress: { positionSeconds: 0, completed: false },
+        })
         nowPlayingTitle.textContent = outcome.label
         nowPlaying.classList.add('is-visible')
 

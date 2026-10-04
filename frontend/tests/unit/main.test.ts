@@ -174,3 +174,53 @@ it('removes a saved study and discards its active player', async () => {
   expect(root.querySelector('audio')?.getAttribute('src')).toBeNull()
   await vi.waitFor(() => expect(root.textContent).toContain('Nenhum estudo arquivado ainda'))
 })
+
+it('mounts the Reading View with the saved study text when reopening it from the library', async () => {
+  const root = document.createElement('div')
+  const detail = makeSavedStudy()
+  const listStudies = vi.fn().mockResolvedValue([summary(detail)])
+  await mountApp(root, {
+    createStudy: vi.fn(),
+    listStudies,
+    getStudy: vi.fn().mockResolvedValue(detail),
+    updateProgress: vi.fn().mockResolvedValue(undefined),
+    removeStudy: vi.fn(),
+    createObjectUrl: vi.fn().mockReturnValue('blob:saved-study'),
+    revokeObjectUrl: vi.fn(),
+    confirmRemoval: vi.fn().mockReturnValue(true),
+  })
+
+  root.querySelector<HTMLButtonElement>('[data-open-study]')!.click()
+
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:saved-study')
+  })
+  const readingView = root.querySelector('[data-reading-view]')
+  expect(readingView?.textContent).toContain(detail.timeline.chunks[0]!.sentences[0]!.text)
+})
+
+it('mounts the Reading View with the freshly generated text right after creating a study', async () => {
+  const root = document.createElement('div')
+  const result = makeStudyResult()
+  const createStudy = vi.fn().mockResolvedValue({
+    result,
+    label: 'Citologia aplicada',
+    saved: true,
+  })
+  const listStudies = vi.fn().mockResolvedValue([])
+  await mountApp(root, {
+    createStudy,
+    listStudies,
+    createObjectUrl: vi.fn().mockReturnValue('blob:estudo-gerado'),
+  })
+  const text = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
+  text.value = 'Texto para o estudo.'
+
+  root.querySelector('form')!.dispatchEvent(new SubmitEvent('submit', { cancelable: true }))
+
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:estudo-gerado')
+  })
+  const readingView = root.querySelector('[data-reading-view]')
+  expect(readingView?.textContent).toContain(result.timeline.chunks[0]!.sentences[0]!.text)
+})
