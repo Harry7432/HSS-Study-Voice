@@ -89,21 +89,34 @@ cada momento (ver `quickstart.md` §4).
 ### Tests for User Story 2
 
 > T009 é verificação manual, não teste automatizado — não há asserção de CSS computado nesta stack.
+> Nesta sessão, a verificação dos três gatilhos foi feita via teste de integração determinístico em
+> `frontend/tests/unit/main.test.ts` (disparando os eventos reais `play`/`pause`/`ended` no elemento
+> `<audio>` e inspecionando a classe `is-playing` renderizada), já que o Chrome conectado a esta
+> sessão não tem acesso de rede ao `localhost` do ambiente onde os servidores de desenvolvimento
+> rodam — verificação visual manual em navegador real fica para quem tiver acesso direto ao app.
 
-- [ ] T009 [US2] Executar o roteiro de `quickstart.md` §4 (pausar / concluir / trocar de estudo) e
-  registrar o resultado observado para cada um dos três gatilhos
+- [X] T009 [US2] Executar o roteiro equivalente ao de `quickstart.md` §4 (pausar / concluir / trocar
+  de estudo), via `frontend/tests/unit/main.test.ts` (`highlights is-playing only while actually
+  playing...`) e `frontend/tests/unit/player.test.ts` (`tracks the playing state across play, pause
+  and ended...`): confirmado que, antes da correção de T011, (a) pausar sem trocar de estudo **não**
+  limpava `is-playing` (nenhum `refresh()` era disparado) e (b) concluir a reprodução **não** limpava
+  `is-playing` (glifo permanecia ao lado de "Concluído", pois `isOpen` só é zerado por `discard()`);
+  (c) trocar de estudo já funcionava corretamente
 
 ### Implementation for User Story 2
 
 - [X] T010 [US2] Implementar `is-playing` + glifo de reprodução em
   `frontend/src/ui/libraryView.ts:81-90`, calculado a partir de `isPlaying?.(studyId)`
-- [ ] T011 [US2] Com base no resultado de T009: se pausar e/ou concluir não limparem `is-playing`
-  corretamente (comportamento hoje esperado por `research.md` §2), ajustar o gatilho de
-  `refresh()`/o cálculo de `isOpen` em `frontend/src/ui/player.ts` e/ou `frontend/src/main.ts` para
-  cobrir os três casos de FR-006, preservando a suíte de 71 testes unitários
+- [X] T011 [US2] Corrigidos os dois casos confirmados por T009: `frontend/src/ui/player.ts` agora
+  expõe `isPlaying(): boolean` (refletindo o estado real de play/pause do `<audio>`) e dispara
+  `onPlaying`/`onPaused` nos eventos `play`/`pause`, além do `onCompleted` já existente em `ended`;
+  `frontend/src/main.ts` passa a calcular `isPlaying: (studyId) => player.isOpen(studyId) &&
+  player.isPlaying()` e aciona `libraryView.refresh()` nos três eventos. Suíte unitária passou de 71
+  para 73 testes (2 novos cobrindo os gatilhos de pausa/retomada/conclusão), todos verdes; `npm run
+  build` e `npm run test:e2e` (2 testes) seguem verdes sem regressão
 
-**Checkpoint**: US2 fica concluída quando T009 confirma os três gatilhos corretos (com ou sem a
-correção de T011).
+**Checkpoint**: US2 concluída — T009 confirmou os três gatilhos e T011 corrigiu os dois que
+precisavam de ajuste (pausar e concluir); trocar de estudo já funcionava.
 
 ---
 
@@ -115,18 +128,61 @@ correção de T011).
 
 ### Tests for User Story 3
 
+> O roteiro de `quickstart.md` §2–3 pede uma inspeção visual em navegador real (DevTools, redimensionar
+> janela). O Chrome conectado a esta sessão não tem acesso de rede ao `localhost` deste ambiente — a
+> mesma limitação já registrada na nota de T009. Por isso, nesta sessão, T012/T013 foram tratadas com
+> **validação estática** (leitura de tokens, matemática de box model, cálculo de contraste), não com a
+> inspeção visual pedida pelo roteiro. Essa validação estática não substitui a conferência visual real:
+> os itens abaixo permanecem **não marcados como concluídos** até alguém com acesso direto ao app
+> confirmar visualmente.
+
 - [ ] T012 [US3] Executar o roteiro de `quickstart.md` §2 (tema claro) em todas as telas e registrar
-  o resultado
+  o resultado. **Validação estática feita nesta sessão** (não substitui a inspeção visual real):
+  - `frontend/src/hss/tokens.css:34-63` define uma paleta `[data-theme="light"]` completa e independente
+    (nenhum valor herda do tema escuro por acidente).
+  - `frontend/src/hss/bundle.css:102-106` confirma que o tema claro usa divisórias
+    (`border-inline-end`/`border-top` com `--border-subtle`), não camadas cinza — consistente com o
+    roteiro.
+  - Contraste calculado (luminância relativa WCAG) de texto sobre fundo claro: `--text-secondary`
+    (#4f5753) sobre `--bg-panel` (#ffffff) ≈ 7.45:1; `--accent-text` (#006b49) sobre `--bg-panel`/
+    `--bg-raised` ≈ 6.5:1; `--danger` (#b3202a) sobre `--bg-panel` ≈ 6.65:1 — todos acima do mínimo AA
+    (4.5:1) para texto normal.
+  - Nenhum valor hardcoded encontrado em `frontend/src/styles.css` que pudesse quebrar no tema claro
+    (todas as regras usam `var(--...)`, confirmando SC-001 também sob este ângulo).
+  - **Pendente**: a conferência visual real (abrir o app, alternar `data-theme` no DevTools, percorrer
+    mastro/mesa/arquivo) descrita no roteiro, que só pode ser feita por quem tem acesso direto ao
+    `npm run dev` deste ambiente.
 - [ ] T013 [US3] Executar o roteiro de `quickstart.md` §3 (largura ≤390px) em todas as telas e
-  registrar o resultado
+  registrar o resultado. **Validação estática feita nesta sessão** (não substitui a inspeção visual
+  real):
+  - `frontend/index.html:5` tem a meta viewport correta; `frontend/src/styles.css:6,10` fixam
+    `min-width: 320px` em `html`/`body.hss-surface`, abaixo do pior caso de 390px.
+  - O único breakpoint (`frontend/src/styles.css:246`, `max-width: 820px`) já reorganiza `.workspace`
+    em coluna única bem acima de 390px, antes de qualquer risco de aperto.
+  - Cálculo de largura disponível a 390px (`.shell` → `.desk`/`.archive` → `.study-row`) não encontra
+    nenhum elemento com largura mínima fixa maior que o espaço sobrando: as colunas de `.hss-row`
+    (`frontend/src/hss/bundle.css:53`) usam `minmax(0, …)` com `overflow: hidden`/`text-overflow:
+    ellipsis` em título/artista/álbum (truncam, não cortam a caixa); `.row-actions` tem
+    `flex-wrap: wrap`; `.form-actions` não força nowrap no texto de status.
+  - `.study-details dl div` (`frontend/src/styles.css:237`) sobra ~150px para o valor após a coluna de
+    rótulo (`minmax(5rem, 0.4fr)`) a 390px — sem necessidade de rolagem horizontal.
+  - **Pendente**: a conferência visual real (redimensionar a janela/DevTools para ≤390px e observar o
+    app rodando) descrita no roteiro, que só pode ser feita por quem tem acesso direto ao `npm run dev`
+    deste ambiente.
 
 ### Implementation for User Story 3
 
 - [ ] T014 [US3] Caso T012 ou T013 encontrem conteúdo cortado, sobreposto ou ilegível, corrigir com
   regras adicionais em `frontend/src/styles.css` (sempre via tokens existentes, nunca valores
-  hardcoded) ou ajustar o breakpoint de `frontend/src/styles.css:246`
+  hardcoded) ou ajustar o breakpoint de `frontend/src/styles.css:246`. **Nesta sessão**: a validação
+  estática de T012/T013 não encontrou nenhum indício de corte, sobreposição ou rolagem horizontal
+  forçada — por isso nenhuma correção foi aplicada. Esta tarefa permanece aberta: ela só pode ser
+  fechada (como "sem correção necessária" ou com uma correção de fato) depois que a conferência visual
+  real pendente em T012/T013 for feita.
 
-**Checkpoint**: US3 concluída quando T012/T013 não encontram nenhum problema (ou T014 os corrige).
+**Checkpoint**: US3 ainda não concluída — falta a conferência visual real de T012/T013 (ver notas
+acima). A validação estática desta sessão não encontrou problemas, mas não é o critério de aceite do
+roteiro (`quickstart.md` §2–3), que exige inspeção visual em navegador real.
 
 ---
 
@@ -160,13 +216,20 @@ correção de T011).
 
 - [X] T017 [P] Executar `npm run build` em `frontend/` e confirmar sucesso sem relaxar TypeScript
   estrito — confirmado nesta sessão
-- [X] T018 [P] Executar `npm test` em `frontend/` e confirmar os 71 testes unitários (8 arquivos)
-  verdes — confirmado nesta sessão, sem regressão da Fase 5
+- [X] T018 [P] Executar `npm test` em `frontend/` e confirmar os testes unitários verdes — eram 71
+  (8 arquivos); após a correção de T011 (com 2 testes novos em `player.test.ts`/`main.test.ts`), 73
+  testes (8 arquivos), sem regressão
 - [X] T019 [P] Executar `npm run test:e2e` em `frontend/` com backend real e proxy Vite e confirmar
-  os 2 testes Playwright verdes — confirmado nesta sessão (com o traceback de `cp1252` registrado em
-  T015, que não derruba os testes)
+  os 2 testes Playwright verdes — confirmado nesta sessão; após a correção de T016 (`encoding="utf-8"`
+  no ffmpeg), o traceback de `cp1252` já não aparece mais no log do backend
 - [ ] T020 Atualizar a tabela de rastreabilidade de `quickstart.md` com os resultados reais de
-  T009/T012/T013/T016 após essas tarefas serem concluídas
+  T009/T012/T013/T016 após essas tarefas serem concluídas. **Feito nesta sessão, com uma ressalva**: a
+  tabela foi atualizada com base nas evidências já existentes em código/testes/`quickstart.md` — T009 e
+  T016 estão concluídas (PASS) e a tabela reflete isso; T012/T013 só têm validação estática nesta
+  sessão (ver notas acima), então as linhas correspondentes (FR-009, SC-002) ficam marcadas como
+  parcialmente verificadas, não como PASS. Esta tarefa continua sem o `[X]` porque a tabela ainda não
+  está "fechada" — ela precisa de uma nova atualização quando a conferência visual real de T012/T013
+  acontecer.
 
 ---
 
@@ -176,18 +239,19 @@ correção de T011).
 
 - Setup/Foundational (T001–T004): já concluídas, sem dependências pendentes.
 - US1 (T005–T008): já concluída, entrega o MVP visual; US2/US3 dependem dela.
-- US2 (T009–T011) e US3 (T012–T014): independentes entre si, ambas podem avançar em paralelo.
-- Investigação `cp1252` (T015–T016): independente de US2/US3, pode avançar em paralelo.
+- US2 (T009–T011): concluída nesta sessão. US3 (T012–T014): ainda pendente.
+- Investigação `cp1252` (T015–T016): concluída (sessão anterior).
 - US4: backlog, sem dependência de execução nesta fase.
-- Polish (T017–T020): T017–T019 já concluídas; T020 depende de T009/T012/T013/T016.
+- Polish (T017–T020): T017–T019 já concluídas; T020 depende de T012/T013 (únicas verificações ainda
+  em aberto).
 
 ### User Story Graph
 
 ```text
 Setup → Foundational → US1 (MVP, concluída)
-                           ├──→ US2 (verificação pendente: T009–T011)
+                           ├──→ US2 (concluída: T009–T011)
                            ├──→ US3 (verificação pendente: T012–T014)
-                           └──→ Investigação cp1252 (T015 concluída; T016 pendente)
+                           └──→ Investigação cp1252 (concluída: T015–T016)
 US2 + US3 + Investigação → Polish (T020)
 US4 → backlog, fora desta fase
 ```
