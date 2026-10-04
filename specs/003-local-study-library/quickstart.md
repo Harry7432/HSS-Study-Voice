@@ -98,3 +98,42 @@ bloqueado (ou reduza a cota via DevTools → Application → Storage, se o naveg
   depende do `libraryService`);
 - a UI exibe um aviso claro de que o estudo não pôde ser salvo na biblioteca, em vez de travar ou
   falhar silenciosamente (FR-012, SC-006).
+
+## 6. Evidências de execução (2026-10-04)
+
+### Gates automatizados
+
+| Gate | Resultado |
+|------|-----------|
+| `frontend`: `npm run test` | PASS — 8 arquivos, 71 testes |
+| `frontend`: `npm run build` | PASS — TypeScript estrito e build Vite |
+| `backend`: `uv run pytest tests` | PASS — 183 testes, 1 aviso de depreciação do Starlette |
+| `frontend`: `npm run test:e2e` | PASS — 2 cenários Playwright com backend real e proxy Vite |
+
+O primeiro cenário E2E gera e valida um estudo, confirma a mesma entrada nos stores reais
+`studyMetadata` e `studyAssets`, persiste uma posição, recarrega e retoma com diferença máxima de um
+segundo. Depois bloqueia `/api/v1`, recarrega novamente, lista e abre o Blob local, conclui o estudo
+e confirma a remoção dos dois stores. O segundo cenário torna o IndexedDB indisponível antes da
+montagem, confirma as três chamadas same-origin via proxy e verifica aviso claro com o áudio gerado
+ainda reproduzível.
+
+### Rastreabilidade dos requisitos
+
+| Requisitos | Evidência | Estado |
+|------------|-----------|--------|
+| FR-001–FR-005 | Testes de validators, criação, labels e `libraryService`; E2E nos dois stores | PASS |
+| FR-006–FR-010 | Testes de player/remoção; E2E de retomada, conclusão, backend bloqueado e remoção atômica | PASS |
+| FR-011 | T028–T030: composição local metadata+assets e painel com rótulo, data, duração, tamanho e progresso; testes cobrem ausência, par incompleto e indisponibilidade sem erro técnico exposto | PASS |
+| FR-012 | Testes unitários de indisponibilidade e E2E com `QuotaExceededError` | PASS |
+| FR-013–FR-016 | Backend sem alterações; validators verdes; metadados sem texto original; E2E usa somente `/api/v1` same-origin | PASS |
+| SC-001–SC-006 | Fluxo E2E completo, retomada, remoção, reprodução local e falha de IndexedDB, apoiado pela suíte unitária | PASS |
+
+### Gates constitucionais
+
+Os princípios I–X permanecem atendidos: os artefatos de spec/plan/tasks governaram o trabalho; os
+dados e a reprodução permanecem local-first; o backend e o pipeline não foram modificados; testes
+unitários, integração real e regressão estão verdes; nenhuma dependência ou abstração foi adicionada;
+e URLs relativas, validação runtime e retenção mínima preservam os limites de segurança. T028–T030
+foram concluídas porque FR-011 é requisito obrigatório do escopo aprovado da Fase 5; a “Phase 6” de
+`tasks.md` é uma etapa interna dessa feature, não a próxima fase do produto. Nenhum trabalho da fase
+seguinte do produto foi iniciado.

@@ -1,6 +1,14 @@
-import type { LibraryService, SavedStudySummary } from '../library/types'
+import type { LibraryService, SavedStudyDetail, SavedStudySummary } from '../library/types'
 
 type LibraryReader = Pick<LibraryService, 'listStudies'>
+
+interface LibraryViewDependencies extends LibraryReader {
+  getStudy?: LibraryService['getStudy']
+  removeStudy?: LibraryService['removeStudy']
+  confirmRemoval?: (study: SavedStudySummary) => boolean
+  onOpen?: (studyId: string) => void | Promise<void>
+  onRemoved?: (studyId: string) => void
+}
 
 export interface LibraryView {
   refresh(): Promise<void>
@@ -13,7 +21,53 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes} min ${seconds.toString().padStart(2, '0')} s`
 }
 
-function createStudyRow(study: SavedStudySummary): HTMLLIElement {
+function formatDate(timestamp: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp))
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function renderDetails(container: HTMLElement, study: SavedStudyDetail): void {
+  container.className = 'study-details'
+  container.removeAttribute('role')
+  container.replaceChildren()
+  const title = document.createElement('h4')
+  title.textContent = `Detalhes de ${study.label}`
+  const list = document.createElement('dl')
+  const fields: Array<readonly [string, string]> = [
+    ['Data', formatDate(study.createdAt)],
+    ['Duração', formatDuration(study.durationSeconds)],
+    ['Tamanho', formatFileSize(study.fileSizeBytes)],
+    ['Posição', formatDuration(study.progress.positionSeconds)],
+    ['Conclusão', study.progress.completed ? 'Concluído' : 'Em andamento'],
+  ]
+  for (const [term, value] of fields) {
+    const row = document.createElement('div')
+    const name = document.createElement('dt')
+    const description = document.createElement('dd')
+    name.textContent = term
+    description.textContent = value
+    row.append(name, description)
+    list.append(row)
+  }
+  container.append(title, list)
+}
+
+function createStudyRow(
+  study: SavedStudySummary,
+  dependencies: LibraryViewDependencies,
+  refresh: () => Promise<void>,
+): HTMLLIElement {
   const item = document.createElement('li')
   item.className = 'study-row'
 
@@ -32,13 +86,7 @@ function createStudyRow(study: SavedStudySummary): HTMLLIElement {
 
   const date = document.createElement('time')
   date.dateTime = study.createdAt
-  date.textContent = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(study.createdAt))
+  date.textContent = formatDate(study.createdAt)
 
   const duration = document.createElement('span')
   duration.textContent = formatDuration(study.durationSeconds)
@@ -49,13 +97,91 @@ function createStudyRow(study: SavedStudySummary): HTMLLIElement {
     completed.textContent = 'Concluído'
     metadata.append(completed)
   }
+  const actions = document.createElement('div')
+  actions.className = 'study-actions'
+  if (dependencies.getStudy !== undefined) {
+    const details = document.createElement('button')
+    details.type = 'button'
+    details.dataset.showStudyDetails = study.studyId
+    details.textContent = 'Detalhes'
+    details.addEventListener('click', () => {
+      let panel = item.querySelector<HTMLElement>('[data-study-details]')
+      if (panel === null) {
+        panel = document.createElement('section')
+        panel.dataset.studyDetails = study.studyId
+        item.append(panel)
+      }
+      panel.className = 'study-details'
+      panel.removeAttribute('role')
+      panel.textContent = 'Consultando detalhes…'
+      details.disabled = true
+      void (async () => {
+        try {
+          const detail = await dependencies.getStudy?.(study.studyId)
+          if (detail === undefined) {
+            panel!.textContent = 'Este estudo não está mais disponível na biblioteca local.'
+            return
+          }
+          renderDetails(panel!, detail)
+        } catch {
+          panel!.role = 'alert'
+          panel!.textContent =
+            'Não foi possível consultar os detalhes. Verifique o armazenamento local e tente novamente.'
+        } finally {
+          details.disabled = false
+        }
+      })()
+    })
+    actions.append(details)
+  }
+  if (dependencies.onOpen !== undefined) {
+    const open = document.createElement('button')
+    open.type = 'button'
+    open.dataset.openStudy = study.studyId
+    open.textContent = 'Ouvir'
+    open.addEventListener('click', () => void dependencies.onOpen?.(study.studyId))
+    actions.append(open)
+  }
+  if (dependencies.removeStudy !== undefined) {
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.dataset.removeStudy = study.studyId
+    remove.textContent = 'Remover'
+    remove.addEventListener('click', () => {
+      const confirmed =
+        dependencies.confirmRemoval?.(study) ??
+        window.confirm(`Remover “${study.label}” deste navegador?`)
+      if (!confirmed) return
+      void (async () => {
+        remove.disabled = true
+        try {
+          await dependencies.removeStudy?.(study.studyId)
+          dependencies.onRemoved?.(study.studyId)
+          await refresh()
+        } catch {
+          remove.disabled = false
+          let alert = item.querySelector<HTMLElement>('[data-remove-warning]')
+          if (alert === null) {
+            alert = document.createElement('p')
+            alert.dataset.removeWarning = ''
+            alert.role = 'alert'
+            item.append(alert)
+          }
+          alert.textContent =
+            'Não foi possível remover este estudo. Verifique o armazenamento local e tente novamente.'
+        }
+      })()
+    })
+    actions.append(remove)
+  }
   item.append(label, metadata)
+  if (actions.childElementCount > 0) item.append(actions)
   return item
 }
 
 export function createLibraryView(
   container: HTMLElement,
-  library: LibraryReader,
+  library: LibraryViewDependencies,
 ): LibraryView {
   container.classList.add('archive')
   container.innerHTML = `
@@ -68,7 +194,7 @@ export function createLibraryView(
   const count = container.querySelector<HTMLElement>('[data-library-count]')!
   const content = container.querySelector<HTMLElement>('[data-library-content]')!
 
-  return {
+  const view: LibraryView = {
     async refresh(): Promise<void> {
       content.replaceChildren()
       const loading = document.createElement('p')
@@ -91,7 +217,7 @@ export function createLibraryView(
 
         const list = document.createElement('ol')
         list.className = 'library-list'
-        studies.forEach((study) => list.append(createStudyRow(study)))
+        studies.forEach((study) => list.append(createStudyRow(study, library, view.refresh)))
         content.append(list)
       } catch {
         count.textContent = 'indisponível'
@@ -105,4 +231,5 @@ export function createLibraryView(
       }
     },
   }
+  return view
 }

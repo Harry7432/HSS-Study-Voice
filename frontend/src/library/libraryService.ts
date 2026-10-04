@@ -8,7 +8,10 @@ import {
   type StudyCreationResult,
 } from './types'
 
-type MvpLibraryService = Pick<LibraryService, 'saveStudy' | 'listStudies'>
+type CurrentLibraryService = Pick<
+  LibraryService,
+  'saveStudy' | 'listStudies' | 'getStudy' | 'updateProgress' | 'removeStudy'
+>
 
 interface LibraryServiceDependencies {
   openDb?: () => Promise<IDBPDatabase<StudyLibraryDb>>
@@ -25,7 +28,7 @@ function unavailable(error: unknown): LibraryUnavailableError {
 
 export function createLibraryService(
   dependencies: LibraryServiceDependencies = {},
-): MvpLibraryService {
+): CurrentLibraryService {
   const openDb = dependencies.openDb ?? openLibraryDb
   const now = dependencies.now ?? (() => new Date())
 
@@ -91,6 +94,89 @@ export function createLibraryService(
           cursor = await cursor.continue()
         }
         return summaries
+      } catch (error) {
+        throw unavailable(error)
+      }
+    },
+
+    async getStudy(studyId) {
+      try {
+        const database = await openDb()
+        const transaction = database.transaction(
+          ['studyMetadata', 'studyAssets'],
+          'readonly',
+        )
+        const [metadata, assets] = await Promise.all([
+          transaction.objectStore('studyMetadata').get(studyId),
+          transaction.objectStore('studyAssets').get(studyId),
+          transaction.done,
+        ])
+        if (metadata === undefined || assets === undefined) return undefined
+        return {
+          ...metadata,
+          audio: assets.audio,
+          timeline: assets.timeline,
+        }
+      } catch (error) {
+        throw unavailable(error)
+      }
+    },
+
+    async updateProgress(studyId, update): Promise<void> {
+      if (
+        update.positionSeconds !== undefined &&
+        (!Number.isFinite(update.positionSeconds) || update.positionSeconds < 0)
+      ) {
+        throw new RangeError('A posição deve estar entre 0 e a duração do estudo.')
+      }
+
+      try {
+        const database = await openDb()
+        const transaction = database.transaction('studyMetadata', 'readwrite')
+        const store = transaction.objectStore('studyMetadata')
+        const metadata = await store.get(studyId)
+        if (metadata === undefined) {
+          await transaction.done
+          return
+        }
+        if (
+          update.positionSeconds !== undefined &&
+          update.positionSeconds > metadata.durationSeconds
+        ) {
+          transaction.abort()
+          await transaction.done.catch(() => undefined)
+          throw new RangeError('A posição deve estar entre 0 e a duração do estudo.')
+        }
+
+        await store.put({
+          ...metadata,
+          progress: {
+            ...metadata.progress,
+            ...update,
+            updatedAt: now().toISOString(),
+          },
+        })
+        await transaction.done
+      } catch (error) {
+        if (error instanceof RangeError) {
+          throw error
+        }
+        throw unavailable(error)
+      }
+    },
+
+    async removeStudy(studyId): Promise<void> {
+      try {
+        const database = await openDb()
+        const transaction = database.transaction(
+          ['studyMetadata', 'studyAssets'],
+          'readwrite',
+        )
+        await Promise.all([
+          transaction.objectStore('studyMetadata').delete(studyId),
+          transaction.objectStore('studyAssets').delete(studyId),
+          transaction.done,
+        ])
       } catch (error) {
         throw unavailable(error)
       }

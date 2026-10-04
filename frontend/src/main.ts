@@ -10,12 +10,17 @@ import type {
   StudyCreateInput,
 } from './library/types'
 import { createLibraryView } from './ui/libraryView'
+import { createLocalPlayer } from './ui/player'
 
 interface AppDependencies {
   createStudy(input: StudyCreateInput): Promise<CreateStudyOutcome>
   listStudies(): Promise<SavedStudySummary[]>
+  getStudy?: LibraryService['getStudy']
+  updateProgress?: LibraryService['updateProgress']
+  removeStudy?: LibraryService['removeStudy']
   createObjectUrl(blob: Blob): string
   revokeObjectUrl?(url: string): void
+  confirmRemoval?: (study: SavedStudySummary) => boolean
 }
 
 function defaultDependencies(): AppDependencies {
@@ -24,6 +29,9 @@ function defaultDependencies(): AppDependencies {
   return {
     createStudy: (input) => createAndSaveStudy(input, { client, library }),
     listStudies: () => library.listStudies(),
+    getStudy: (studyId) => library.getStudy(studyId),
+    updateProgress: (studyId, update) => library.updateProgress(studyId, update),
+    removeStudy: (studyId) => library.removeStudy(studyId),
     createObjectUrl: (blob) => URL.createObjectURL(blob),
     revokeObjectUrl: (url) => URL.revokeObjectURL(url),
   }
@@ -68,12 +76,6 @@ export async function mountApp(
     </main>
   `
 
-  const libraryContainer = root.querySelector<HTMLElement>('[data-library]')!
-  const libraryView = createLibraryView(libraryContainer, {
-    listStudies: dependencies.listStudies,
-  })
-  await libraryView.refresh()
-
   const form = root.querySelector<HTMLFormElement>('form')!
   const textField = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
   const labelField = root.querySelector<HTMLInputElement>('[name="label"]')!
@@ -83,6 +85,68 @@ export async function mountApp(
   const nowPlayingTitle = root.querySelector<HTMLElement>('#now-playing-title')!
   const audio = root.querySelector<HTMLAudioElement>('audio')!
   let activeObjectUrl: string | undefined
+  let generatedStudyId: string | undefined
+  const libraryContainer = root.querySelector<HTMLElement>('[data-library]')!
+  let libraryView: ReturnType<typeof createLibraryView>
+  const player = createLocalPlayer(audio, {
+    updateProgress: dependencies.updateProgress ?? (async () => undefined),
+    createObjectUrl: dependencies.createObjectUrl,
+    revokeObjectUrl: dependencies.revokeObjectUrl ?? (() => undefined),
+    onCompleted: async () => libraryView.refresh(),
+    onWarning: (message) => {
+      status.dataset.kind = 'error'
+      status.textContent = message
+    },
+  })
+  const openStudy = dependencies.getStudy
+  libraryView = createLibraryView(libraryContainer, {
+    listStudies: dependencies.listStudies,
+    ...(dependencies.removeStudy === undefined
+      ? {}
+      : { removeStudy: dependencies.removeStudy }),
+    ...(dependencies.confirmRemoval === undefined
+      ? {}
+      : { confirmRemoval: dependencies.confirmRemoval }),
+    ...(openStudy === undefined
+      ? {}
+      : {
+          getStudy: openStudy,
+          onOpen: async (studyId: string) => {
+            try {
+              const study = await openStudy(studyId)
+              if (study === undefined) {
+                status.dataset.kind = 'error'
+                status.textContent = 'Este estudo não está mais disponível na biblioteca local.'
+                await libraryView.refresh()
+                return
+              }
+              if (activeObjectUrl !== undefined) {
+                dependencies.revokeObjectUrl?.(activeObjectUrl)
+                activeObjectUrl = undefined
+                generatedStudyId = undefined
+              }
+              player.open(study)
+              nowPlayingTitle.textContent = study.label
+              nowPlaying.classList.add('is-visible')
+              status.dataset.kind = 'success'
+              status.textContent = 'Reproduzindo a cópia salva neste navegador.'
+            } catch {
+              status.dataset.kind = 'error'
+              status.textContent = 'Não foi possível abrir este estudo na biblioteca local.'
+            }
+          },
+        }),
+    onRemoved: (studyId) => {
+      if (player.isOpen(studyId)) player.discard()
+      if (generatedStudyId === studyId && activeObjectUrl !== undefined) {
+        dependencies.revokeObjectUrl?.(activeObjectUrl)
+        activeObjectUrl = undefined
+        generatedStudyId = undefined
+        audio.removeAttribute('src')
+      }
+    },
+  })
+  await libraryView.refresh()
 
   form.addEventListener('submit', (event) => {
     event.preventDefault()
@@ -99,10 +163,12 @@ export async function mountApp(
           ...(label.length > 0 ? { label } : {}),
         }
         const outcome = await dependencies.createStudy(input)
+        player.discard()
         if (activeObjectUrl !== undefined) {
           dependencies.revokeObjectUrl?.(activeObjectUrl)
         }
         activeObjectUrl = dependencies.createObjectUrl(outcome.result.audio)
+        generatedStudyId = outcome.saved ? outcome.result.studyId : undefined
         audio.src = activeObjectUrl
         nowPlayingTitle.textContent = outcome.label
         nowPlaying.classList.add('is-visible')

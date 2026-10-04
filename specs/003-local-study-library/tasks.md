@@ -88,14 +88,14 @@ conclusão visível.
 
 > Executar T020–T021 e confirmar RED antes de T022–T024.
 
-- [ ] T020 [P] [US2] Adicionar testes de `updateProgress()` em `frontend/tests/unit/libraryService.test.ts`: atualização parcial sem tocar assets/outros campos, limites `0 <= positionSeconds <= durationSeconds`, `updatedAt` ISO, nova posição em estudo concluído e `LibraryUnavailableError` antes da implementação
-- [ ] T021 [P] [US2] Criar testes do player com relógio falso em `frontend/tests/unit/player.test.ts`, cobrindo Object URL, retomada com tolerância de 1 segundo, escritas em `pause`/`seeked`/`visibilitychange`, checkpoint a cada 5 segundos visíveis, `ended`, revogação de URL e aviso claro sem interromper reprodução quando `updateProgress` falhar
+- [X] T020 [P] [US2] Adicionar testes de `updateProgress()` em `frontend/tests/unit/libraryService.test.ts`: atualização parcial sem tocar assets/outros campos, limites `0 <= positionSeconds <= durationSeconds`, `updatedAt` ISO, nova posição em estudo concluído e `LibraryUnavailableError` antes da implementação
+- [X] T021 [P] [US2] Criar testes do player com relógio falso em `frontend/tests/unit/player.test.ts`, cobrindo Object URL, retomada com tolerância de 1 segundo, escritas em `pause`/`seeked`/`visibilitychange`, checkpoint a cada 5 segundos visíveis, `ended`, revogação de URL e aviso claro sem interromper reprodução quando `updateProgress` falhar
 
 ### Implementation for User Story 2
 
-- [ ] T022 [P] [US2] Implementar `updateProgress()` em `frontend/src/library/libraryService.ts`, alterando somente `studyMetadata` e convertendo falhas para `LibraryUnavailableError`
-- [ ] T023 [P] [US2] Implementar player local, política de persistência/tolerância e aviso não bloqueante para falha de progresso em `frontend/src/ui/player.ts`, sem depender do backend depois de obter `StudyAssets`
-- [ ] T024 [US2] Integrar abertura do player, retomada e atualização visual de conclusão em `frontend/src/main.ts` e `frontend/src/ui/libraryView.ts`
+- [X] T022 [P] [US2] Implementar `updateProgress()` em `frontend/src/library/libraryService.ts`, alterando somente `studyMetadata` e convertendo falhas para `LibraryUnavailableError`
+- [X] T023 [P] [US2] Implementar player local, política de persistência/tolerância e aviso não bloqueante para falha de progresso em `frontend/src/ui/player.ts`, sem depender do backend depois de obter `StudyAssets`
+- [X] T024 [US2] Integrar abertura do player, retomada e atualização visual de conclusão em `frontend/src/main.ts` e `frontend/src/ui/libraryView.ts`
 
 **Checkpoint**: US2 retoma e conclui estudos exclusivamente a partir da cópia local.
 
@@ -112,18 +112,22 @@ repetir sem erro e preservar os demais estudos.
 
 > Executar T025 e confirmar RED antes de T026–T027.
 
-- [ ] T025 [US3] Adicionar testes de serviço e UI para remoção em `frontend/tests/unit/libraryService.test.ts` e `frontend/tests/unit/libraryView.test.ts`: deletes multi-store, idempotência, preservação de outros IDs, rollback, `LibraryUnavailableError`, manutenção do item visível e aviso claro quando remover falhar
+- [X] T025 [US3] Adicionar testes de serviço e UI para remoção em `frontend/tests/unit/libraryService.test.ts` e `frontend/tests/unit/libraryView.test.ts`: deletes multi-store, idempotência, preservação de outros IDs, rollback, `LibraryUnavailableError`, manutenção do item visível e aviso claro quando remover falhar
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Implementar `removeStudy()` multi-store atômico e idempotente em `frontend/src/library/libraryService.ts`, convertendo falhas para `LibraryUnavailableError`
-- [ ] T027 [US3] Adicionar remoção com confirmação, descarte do player/Object URL, atualização da lista no sucesso e aviso claro preservando o item na falha em `frontend/src/ui/libraryView.ts`, `frontend/src/ui/player.ts` e `frontend/src/main.ts`
+- [X] T026 [US3] Implementar `removeStudy()` multi-store atômico e idempotente em `frontend/src/library/libraryService.ts`, convertendo falhas para `LibraryUnavailableError`
+- [X] T027 [US3] Adicionar remoção com confirmação, descarte do player/Object URL, atualização da lista no sucesso e aviso claro preservando o item na falha em `frontend/src/ui/libraryView.ts`, `frontend/src/ui/player.ts` e `frontend/src/main.ts`
 
 **Checkpoint**: US3 remove integralmente a cópia local sem resíduos.
 
 ---
 
 ## Phase 6: User Story 4 - Ver os detalhes de um estudo específico (Priority: P4)
+
+> **Escopo**: “Phase 6” é apenas a sexta etapa interna deste arquivo de tarefas; US4 e FR-011
+> continuam pertencendo à Fase 5 do produto (`spec.md` linha 9). Concluí-los fecha o escopo aprovado
+> da Fase 5 e não inicia a próxima fase do produto.
 
 **Goal**: compor metadata+assets localmente e exibir metadados/progresso sem rede.
 
@@ -134,12 +138,12 @@ incompleto retorna ausência consistente sem expor erro técnico.
 
 > Executar T028 e confirmar RED antes de T029–T030.
 
-- [ ] T028 [US4] Adicionar testes de serviço e UI para detalhes em `frontend/tests/unit/libraryService.test.ts` e `frontend/tests/unit/libraryView.test.ts`: composição metadata+assets, `undefined` para ausente/par incompleto, `LibraryUnavailableError` e aviso claro sem expor erro técnico quando a consulta falhar
+- [X] T028 [US4] Adicionar testes de serviço e UI para detalhes em `frontend/tests/unit/libraryService.test.ts` e `frontend/tests/unit/libraryView.test.ts`: composição metadata+assets, `undefined` para ausente/par incompleto, `LibraryUnavailableError` e aviso claro sem expor erro técnico quando a consulta falhar
 
 ### Implementation for User Story 4
 
-- [ ] T029 [US4] Implementar `getStudy()` com transação readonly nos dois stores em `frontend/src/library/libraryService.ts`, retornando detalhe composto ou `undefined`
-- [ ] T030 [US4] Implementar painel de detalhes com rótulo, data, duração, tamanho, posição e conclusão, incluindo ausência e aviso claro para indisponibilidade, em `frontend/src/ui/libraryView.ts` e `frontend/src/main.ts`
+- [X] T029 [US4] Implementar `getStudy()` com transação readonly nos dois stores em `frontend/src/library/libraryService.ts`, retornando detalhe composto ou `undefined`
+- [X] T030 [US4] Implementar painel de detalhes com rótulo, data, duração, tamanho, posição e conclusão, incluindo ausência e aviso claro para indisponibilidade, em `frontend/src/ui/libraryView.ts` e `frontend/src/main.ts`
 
 **Checkpoint**: as quatro stories funcionam sobre a biblioteca local dividida em metadata/assets.
 
@@ -147,11 +151,11 @@ incompleto retorna ausência consistente sem expor erro técnico.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T031 Adicionar Playwright do fluxo gerar → validar → salvar → listar → tocar → recarregar → retomar dentro de 1 segundo → concluir → operar offline → remover em `frontend/e2e/library.spec.ts`, verificando os dois stores reais
-- [ ] T032 [P] Executar `npm run test` e `npm run build` definidos em `frontend/package.json` sem relaxar TypeScript estrito ou remover cobertura
-- [ ] T033 [P] Executar `uv run pytest tests` conforme `backend/pyproject.toml` e confirmar regressão verde sem modificar `backend/`
-- [ ] T034 Executar `npm run test:e2e` em `frontend/package.json` com backend real e proxy Vite, validando também armazenamento indisponível conforme `specs/003-local-study-library/quickstart.md`
-- [ ] T035 Revisar FR-001–FR-016, SC-001–SC-006 e gates constitucionais e registrar evidências em `specs/003-local-study-library/quickstart.md`
+- [X] T031 Adicionar Playwright do fluxo gerar → validar → salvar → listar → tocar → recarregar → retomar dentro de 1 segundo → concluir → operar offline → remover em `frontend/e2e/library.spec.ts`, verificando os dois stores reais
+- [X] T032 [P] Executar `npm run test` e `npm run build` definidos em `frontend/package.json` sem relaxar TypeScript estrito ou remover cobertura
+- [X] T033 [P] Executar `uv run pytest tests` conforme `backend/pyproject.toml` e confirmar regressão verde sem modificar `backend/`
+- [X] T034 Executar `npm run test:e2e` em `frontend/package.json` com backend real e proxy Vite, validando também armazenamento indisponível conforme `specs/003-local-study-library/quickstart.md`
+- [X] T035 Revisar FR-001–FR-016, SC-001–SC-006 e gates constitucionais e registrar evidências em `specs/003-local-study-library/quickstart.md`
 
 ---
 
