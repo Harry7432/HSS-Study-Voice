@@ -32,6 +32,13 @@ npm run test:e2e  # playwright test (sobe backend real + vite dev via proxy)
 - `npm run test:e2e`: **2 testes passando** novamente; o log do backend **não** mostrou o traceback de
   `UnicodeDecodeError`/`cp1252` desta vez — consistente com a correção de T016.
 
+**Re-execução em 2026-10-04 (sessão T021–T025, controle de tema claro/escuro)**:
+
+- `npm run build`: sucesso, sem erros de TypeScript.
+- `npm test`: **9 arquivos de teste, 82 testes, todos passando** (os 9 testes novos em
+  `tests/unit/theme.test.ts`, sem regressão nos 73 anteriores).
+- `npm run test:e2e`: **2 testes passando**, sem regressão.
+
 ## 2. Verificação manual — tema claro
 
 1. Com o app rodando (`npm run dev`), abrir o DevTools e executar:
@@ -103,6 +110,41 @@ npm run test:e2e  # playwright test (sobe backend real + vite dev via proxy)
   (2 testes Playwright verdes) rodou de novo e o log do backend não mostrou o traceback de
   `UnicodeDecodeError`/`cp1252`.
 
+## 6. Verificação manual — controle de tema claro/escuro
+
+1. Com o app rodando (`npm run dev`), abrir a tela inicial e localizar o botão de alternância de
+   tema no masthead, ao lado do título "HSS Study Voice" (ícone de sol quando o tema é escuro, lua
+   quando é claro).
+2. Clicar no botão: confirmar que o tema muda imediatamente (painéis, textos e bordas trocam de
+   `dark` para `light` ou vice-versa), o ícone troca (sol ↔ lua), `aria-label` troca
+   ("Ativar tema claro" ↔ "Ativar tema escuro") e `aria-pressed` reflete o tema claro ativo
+   (`"true"` quando claro, `"false"` quando escuro).
+3. Recarregar a página (F5): confirmar que o tema escolhido persiste (lido de `localStorage`,
+   chave `hss-study-theme`), sem flash do tema anterior antes do primeiro paint.
+4. Com `localStorage` limpo (`localStorage.removeItem("hss-study-theme")` no DevTools) e sem
+   recarregar ainda, alternar a preferência do sistema operacional entre claro e escuro, então
+   recarregar: confirmar que o app inicia no tema do sistema quando não há preferência salva.
+5. Repetir os passos 1–3 em largura ≤390px (desktop com DevTools estreitado ou dispositivo móvel):
+   confirmar que o botão não é cortado, o título pode quebrar para duas linhas (comportamento
+   aceitável) e não há rolagem horizontal.
+
+- [x] Resultado registrado (`tasks.md` T024, concluída). **Status em 2026-10-04**: nesta sessão de
+  documentação, a inspeção visual automatizada não foi possível — foram tentadas duas rotas: (a) o
+  Chrome conectado a esta sessão não tem acesso de rede ao `localhost` deste ambiente
+  (`ERR_CONNECTION_REFUSED` em `http://127.0.0.1:5173` e `http://localhost:5173` com `npm run dev`
+  ativo), mesma limitação já registrada em T009/T012/T013; (b) como alternativa, o build de
+  produção foi copiado para fora do repositório com os caminhos de asset reescritos para relativos,
+  para abrir via `file://` sem depender de rede — mas a extensão do Chrome recusa navegar para URLs
+  `file://`. Validação estática feita em seu lugar: `frontend/src/ui/theme.ts` tem 9 testes
+  unitários cobrindo resolução inicial (tema já aplicado > `localStorage` > `prefers-color-scheme` >
+  `dark`), alternância, persistência tolerante a falhas e o estado do botão (`aria-pressed`,
+  `aria-label`, ícone); o botão reaproveita `hss-iconbtn hss-iconbtn-ghost` (32px, já existente e já
+  contrastado nos dois temas via `--text-secondary`/`--text-primary`). **Conferência visual real
+  concluída em 2026-10-04** por quem tem acesso direto ao `npm run dev` deste ambiente: roteiro
+  completo (clicar no botão, recarregar, testar com `localStorage` limpo, redimensionar para
+  ≤390px) executado em desktop e em largura ≤390px, nos temas claro e escuro — sem corte,
+  sobreposição ou rolagem horizontal em nenhum caso.
+
 ### Rastreabilidade dos requisitos
 
 | Requisitos | Evidência | Estado |
@@ -115,8 +157,9 @@ npm run test:e2e  # playwright test (sobe backend real + vite dev via proxy)
 | SC-001 | Inspeção de `styles.css` (só `var(--...)`, dois `@import`) | PASS |
 | SC-002 | Seções 2–3 deste quickstart — mesma situação de FR-009 (estática PASS, visual PENDENTE) | PARCIAL (estática PASS / visual PENDENTE) |
 | SC-003 | Seção 4 deste quickstart — `tasks.md` T009/T011, confirmado por `player.test.ts`/`main.test.ts` (73 testes verdes) | PASS |
-| SC-004 | `npm run build`/`npm test`/`npm run test:e2e` executados nesta sessão (73 testes unitários + 2 e2e, sem regressão) | PASS |
+| SC-004 | `npm run build`/`npm test`/`npm run test:e2e` executados nesta sessão (82 testes unitários + 2 e2e, sem regressão) | PASS |
 | SC-005 | Seção 5 deste quickstart — `tasks.md` T016, confirmado por reexecução de `npm run test:e2e` sem o traceback nesta sessão | PASS |
+| Controle de tema (`tasks.md` T021–T025) | `frontend/src/ui/theme.ts` + `frontend/tests/unit/theme.test.ts` (9 testes); botão só com `hss-iconbtn`/`hss-iconbtn-ghost` e tokens existentes; persistência em `localStorage` (`hss-study-theme`) com fallback a `prefers-color-scheme`; script anti-flash em `index.html`. Validação estática de layout a 390px feita nesta sessão (seção 6); conferência visual real concluída em 2026-10-04 (desktop e ≤390px, temas claro/escuro, sem corte/sobreposição/rolagem horizontal) | PASS |
 
 ### Gates constitucionais
 

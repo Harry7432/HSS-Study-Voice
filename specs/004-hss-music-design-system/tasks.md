@@ -202,6 +202,54 @@ roteiro (`quickstart.md` §2–3), que exige inspeção visual em navegador real
 
 ---
 
+## Phase 6b: Controle de tema claro/escuro no masthead
+
+> Não é uma user story nova — é o controle manual que faltava para a feature de tema claro já
+> mapeada em US3 (Fase 5). Até aqui a troca de tema só existia via DevTools
+> (`document.documentElement.dataset.theme = "light"`); esta fase adiciona um botão acessível na
+> interface, compondo exclusivamente com tokens/componentes já existentes do HSS Music
+> (`hss-iconbtn hss-iconbtn-ghost`), sem criar cor, sombra, radius ou componente novo.
+
+- [X] T021 [P] Criar `frontend/src/ui/theme.ts`: `createThemeController` resolve o tema inicial na
+  ordem (a) `data-theme` já aplicado ao `<html>` (pelo script anti-flash de T022), (b)
+  `localStorage` (`hss-study-theme`), (c) `prefers-color-scheme`, (d) `dark` como padrão; `toggle()`
+  alterna, aplica em `root.dataset.theme` e persiste. `initThemeToggle` liga um
+  `hss-iconbtn hss-iconbtn-ghost` ao controller, atualizando `aria-pressed`/`aria-label`
+  (`Ativar tema claro` / `Ativar tema escuro`) e o ícone (sol/lua, ambos compostos só de `circle`/
+  `rect`/`path` com `fill: currentColor` herdado de `.hss-icon`, sem cor nova)
+- [X] T022 [P] Adicionar o botão em `frontend/index.html` (script inline síncrono no `<head>`, antes
+  dos links de fonte, que aplica `data-theme` a partir de `localStorage`/`prefers-color-scheme`
+  antes do primeiro paint, evitando flash do tema errado) e em `frontend/src/main.ts`
+  (`button[data-theme-toggle]` dentro de `.masthead-heading`, ao lado do título; `.masthead-heading`
+  em `frontend/src/styles.css` é só layout — `display:flex`/`gap: var(--space-3)` — sem cor/raio
+  novos)
+- [X] T023 [P] Adicionar `frontend/tests/unit/theme.test.ts` (9 testes): resolução inicial sem
+  preferência salva (segue `prefers-color-scheme`), preferência salva vence o sistema, tema já
+  aplicado ao `root` é respeitado (não recalculado), `toggle()` alterna e persiste nos dois sentidos,
+  `createLocalStorageThemeStorage` ignora valor corrompido e não lança quando `localStorage` falha
+  (modo privado/cota), e o botão reflete `aria-pressed`/`aria-label`/ícone no estado inicial e após
+  cada clique
+- [X] T024 Validar visualmente desktop e largura ≤390px nos dois temas (claro/escuro), com o botão
+  de alternância. **Tentativa automatizada nesta sessão de documentação, sem sucesso, pelas mesmas
+  razões já registradas em T009/T012/T013**: o Chrome conectado a esta sessão não tem acesso de rede
+  ao `localhost` deste ambiente (`ERR_CONNECTION_REFUSED` em `http://127.0.0.1:5173` e
+  `http://localhost:5173` com `npm run dev` rodando); como alternativa, o build de produção
+  (`npm run build`) foi copiado para fora do repositório com os caminhos de asset reescritos para
+  relativos, para abrir via `file://` sem precisar de rede — mas a extensão do Chrome recusa navegar
+  para URLs `file://` (`"Can't interact with browser-internal or unparseable URLs"`). **Validação
+  visual manual concluída em 2026-10-04 por quem tem acesso direto ao `npm run dev` deste ambiente**:
+  conferido em desktop e em largura ≤390px, nos temas claro e escuro, sem corte, sobreposição ou
+  rolagem horizontal — resultado registrado em `quickstart.md` §6.
+- [X] T025 Atualizar `quickstart.md` com o roteiro de verificação do controle de tema e o resultado
+  desta sessão. **Feito nesta sessão**: `quickstart.md` §6 atualizado com a confirmação visual real
+  de T024 (2026-10-04).
+
+**Checkpoint**: controle de tema implementado, testado (9 testes novos, 82 no total, sem regressão),
+documentado e validado visualmente em desktop/mobile (≤390px) nos dois temas, sem corte, sobreposição
+ou rolagem horizontal.
+
+---
+
 ## Phase 7: User Story 4 - Player customizado HSS Music (Priority: P4, futuro — fora de escopo)
 
 **Goal**: não é trabalho desta fase. Registrado apenas como backlog.
@@ -222,6 +270,9 @@ roteiro (`quickstart.md` §2–3), que exige inspeção visual em navegador real
 - [X] T019 [P] Executar `npm run test:e2e` em `frontend/` com backend real e proxy Vite e confirmar
   os 2 testes Playwright verdes — confirmado nesta sessão; após a correção de T016 (`encoding="utf-8"`
   no ffmpeg), o traceback de `cp1252` já não aparece mais no log do backend
+  **Re-execução nesta sessão (controle de tema, T021–T025)**: `npm run build` sucesso; `npm test`
+  **9 arquivos de teste, 82 testes, todos passando** (73 anteriores + 9 novos de
+  `tests/unit/theme.test.ts`); `npm run test:e2e` **2 testes Playwright verdes**, sem regressão.
 - [ ] T020 Atualizar a tabela de rastreabilidade de `quickstart.md` com os resultados reais de
   T009/T012/T013/T016 após essas tarefas serem concluídas. **Feito nesta sessão, com uma ressalva**: a
   tabela foi atualizada com base nas evidências já existentes em código/testes/`quickstart.md` — T009 e
@@ -241,6 +292,8 @@ roteiro (`quickstart.md` §2–3), que exige inspeção visual em navegador real
 - US1 (T005–T008): já concluída, entrega o MVP visual; US2/US3 dependem dela.
 - US2 (T009–T011): concluída nesta sessão. US3 (T012–T014): ainda pendente.
 - Investigação `cp1252` (T015–T016): concluída (sessão anterior).
+- Controle de tema (T021–T025): T021–T025 concluídas; T024 (validação visual) confirmada em
+  2026-10-04.
 - US4: backlog, sem dependência de execução nesta fase.
 - Polish (T017–T020): T017–T019 já concluídas; T020 depende de T012/T013 (únicas verificações ainda
   em aberto).
@@ -253,6 +306,7 @@ Setup → Foundational → US1 (MVP, concluída)
                            ├──→ US3 (verificação pendente: T012–T014)
                            └──→ Investigação cp1252 (concluída: T015–T016)
 US2 + US3 + Investigação → Polish (T020)
+US1 → Controle de tema (T021–T025, concluída)
 US4 → backlog, fora desta fase
 ```
 
