@@ -115,6 +115,39 @@ describe('local player', () => {
     expect(onCompleted).toHaveBeenCalledWith(detail.studyId)
   })
 
+  it('tracks the playing state across play, pause and ended, and notifies each transition', async () => {
+    const audio = document.createElement('audio')
+    const onPlaying = vi.fn()
+    const onPaused = vi.fn()
+    const onCompleted = vi.fn()
+    const detail = makeDetail()
+    const player = createLocalPlayer(audio, {
+      updateProgress: vi.fn().mockResolvedValue(undefined),
+      createObjectUrl: vi.fn().mockReturnValue('blob:study'),
+      revokeObjectUrl: vi.fn(),
+      onPlaying,
+      onPaused,
+      onCompleted,
+    })
+    player.open(detail)
+    expect(player.isPlaying()).toBe(false)
+
+    audio.dispatchEvent(new Event('play'))
+    expect(player.isPlaying()).toBe(true)
+    expect(onPlaying).toHaveBeenCalledWith(detail.studyId)
+
+    audio.dispatchEvent(new Event('pause'))
+    expect(player.isPlaying()).toBe(false)
+    expect(onPaused).toHaveBeenCalledWith(detail.studyId)
+
+    audio.dispatchEvent(new Event('play'))
+    expect(player.isPlaying()).toBe(true)
+
+    audio.dispatchEvent(new Event('ended'))
+    expect(player.isPlaying()).toBe(false)
+    await vi.waitFor(() => expect(onCompleted).toHaveBeenCalledWith(detail.studyId))
+  })
+
   it('revokes the Object URL when discarded', () => {
     const audio = document.createElement('audio')
     const revokeObjectUrl = vi.fn()

@@ -94,6 +94,8 @@ export async function mountApp(
     updateProgress: dependencies.updateProgress ?? (async () => undefined),
     createObjectUrl: dependencies.createObjectUrl,
     revokeObjectUrl: dependencies.revokeObjectUrl ?? (() => undefined),
+    onPlaying: async () => libraryView.refresh(),
+    onPaused: async () => libraryView.refresh(),
     onCompleted: async () => libraryView.refresh(),
     onWarning: (message) => {
       status.dataset.kind = 'error'
@@ -103,7 +105,7 @@ export async function mountApp(
   const openStudy = dependencies.getStudy
   libraryView = createLibraryView(libraryContainer, {
     listStudies: dependencies.listStudies,
-    isPlaying: (studyId) => player.isOpen(studyId),
+    isPlaying: (studyId) => player.isOpen(studyId) && player.isPlaying(),
     ...(dependencies.removeStudy === undefined
       ? {}
       : { removeStudy: dependencies.removeStudy }),

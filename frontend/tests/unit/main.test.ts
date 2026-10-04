@@ -102,6 +102,48 @@ it('opens a saved study locally and refreshes its visible completion', async () 
   await vi.waitFor(() => expect(root.textContent).toContain('Concluído'))
 })
 
+it('highlights is-playing only while actually playing, clearing it on pause and on completion', async () => {
+  const root = document.createElement('div')
+  const detail = makeSavedStudy()
+  const listStudies = vi.fn().mockResolvedValue([summary(detail)])
+  await mountApp(root, {
+    createStudy: vi.fn(),
+    listStudies,
+    getStudy: vi.fn().mockResolvedValue(detail),
+    updateProgress: vi.fn().mockResolvedValue(undefined),
+    removeStudy: vi.fn(),
+    createObjectUrl: vi.fn().mockReturnValue('blob:saved-study'),
+    revokeObjectUrl: vi.fn(),
+    confirmRemoval: vi.fn().mockReturnValue(true),
+  })
+
+  root.querySelector<HTMLButtonElement>('[data-open-study]')!.click()
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:saved-study')
+  })
+  expect(root.querySelector('.hss-row')?.classList).not.toContain('is-playing')
+
+  root.querySelector('audio')!.dispatchEvent(new Event('play'))
+  await vi.waitFor(() => {
+    expect(root.querySelector('.hss-row')?.classList).toContain('is-playing')
+  })
+
+  root.querySelector('audio')!.dispatchEvent(new Event('pause'))
+  await vi.waitFor(() => {
+    expect(root.querySelector('.hss-row')?.classList).not.toContain('is-playing')
+  })
+
+  root.querySelector('audio')!.dispatchEvent(new Event('play'))
+  await vi.waitFor(() => {
+    expect(root.querySelector('.hss-row')?.classList).toContain('is-playing')
+  })
+
+  root.querySelector('audio')!.dispatchEvent(new Event('ended'))
+  await vi.waitFor(() => {
+    expect(root.querySelector('.hss-row')?.classList).not.toContain('is-playing')
+  })
+})
+
 it('removes a saved study and discards its active player', async () => {
   const root = document.createElement('div')
   const detail = makeSavedStudy()
