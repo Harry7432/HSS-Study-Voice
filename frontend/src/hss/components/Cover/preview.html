@@ -1,0 +1,23 @@
+<!-- @dsCard height=288 -->
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400&family=Figtree:wght@400;700;800&display=swap"><style>html,body{margin:0}body{background:var(--bg-panel);}svg{display:block;width:960px;height:288px}
+.ground{fill:var(--bg-panel)}.brand{fill:var(--accent)}.coral{fill:var(--cover-coral)}.sun{fill:var(--cover-sun)}.sky{fill:var(--cover-sky)}.iris{fill:var(--cover-iris)}.raised{fill:var(--bg-raised)}
+.slab{rx:var(--radius-lg)}.ring{fill:none;stroke:var(--bg-panel);stroke-width:var(--space-1)}.dot{fill:var(--bg-panel)}
+.name{font:800 80px/1 var(--font-sans);letter-spacing:-0.04em;fill:var(--text-primary)}.tag{font:400 14px var(--font-sans);fill:var(--text-secondary)}</style></head><body>
+<svg viewBox="0 0 960 288" role="img" aria-label="HSS Music">
+<!--
+blocks: accent 240x240 slab at (504,24) radius-lg; cover-coral pill 168x72; cover-sun disc 96; cover-sky pill 168x48; cover-iris disc 48; bg-raised 72x72 tile. Sizes are multiples of space-5 (24) and space-1 (4).
+arrangement: one tall accent slab on the left of the box, a staggered column of pill, disc and pill to its right, small satellites bleeding off the right edge.
+pattern: literal motif, concentric rings and a spindle dot cut out of the slab in ground colour, a record; the name is music and the brand is made of pills and discs.
+steps and radii: space-1 (4) ring stroke, space-5 (24) pitch of the rings, radius-lg slab, radius-pill for pills, radius-circle for discs.
+-->
+<rect class="ground" width="960" height="288"/>
+<rect class="brand slab" x="504" y="24" width="240" height="240"/>
+<circle class="ring" cx="624" cy="144" r="96"/><circle class="ring" cx="624" cy="144" r="72"/><circle class="ring" cx="624" cy="144" r="48"/><circle class="dot" cx="624" cy="144" r="12"/>
+<rect class="coral" x="768" y="24" width="168" height="72" rx="36"/>
+<circle class="sun" cx="816" cy="168" r="48"/>
+<rect class="sky" x="768" y="216" width="168" height="48" rx="24"/>
+<circle class="iris" cx="912" cy="168" r="24"/>
+<rect class="raised" x="888" y="108" width="72" height="24" rx="12"/>
+<text class="name" x="32" y="214">HSS Music</text>
+<text class="tag" x="32" y="256">Música em painéis escuros e pílulas macias.</text>
+</svg></body></html>

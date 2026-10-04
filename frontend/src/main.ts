@@ -44,31 +44,33 @@ export async function mountApp(
   root.innerHTML = `
     <main class="shell">
       <header class="masthead">
-        <h1 class="brand">HSS Study Voice</h1>
-        <p class="local-note">Seu áudio fica no navegador. O servidor só entra em cena para produzir uma nova faixa.</p>
+        <h1 class="masthead-title">HSS Study Voice</h1>
+        <p class="masthead-note">Seu áudio fica no navegador. O servidor só entra em cena para produzir uma nova faixa.</p>
       </header>
       <div class="workspace">
-        <section class="production-sheet" aria-labelledby="production-title">
-          <h2 class="section-heading" id="production-title">Prepare o próximo estudo</h2>
-          <p class="section-intro">Cole seu material. Nós removemos a marcação, produzimos o áudio sincronizado e arquivamos a cópia neste dispositivo.</p>
+        <section class="desk hss-panel" aria-labelledby="production-title">
+          <h2 class="desk-title" id="production-title">Prepare o próximo estudo</h2>
+          <p class="desk-intro">Cole seu material. Nós removemos a marcação, produzimos o áudio sincronizado e arquivamos a cópia neste dispositivo.</p>
           <form class="study-form">
             <div class="field">
-              <label for="study-text">Texto do estudo</label>
-              <textarea id="study-text" name="text" required placeholder="Cole aqui o conteúdo que você quer ouvir…"></textarea>
+              <label class="field-label" for="study-text">Texto do estudo</label>
+              <textarea class="field-input" id="study-text" name="text" required placeholder="Cole aqui o conteúdo que você quer ouvir…"></textarea>
             </div>
             <div class="field">
-              <label for="study-label">Rótulo opcional</label>
-              <input id="study-label" name="label" maxlength="80" placeholder="Ex.: Revisão de biologia celular">
+              <label class="field-label" for="study-label">Rótulo opcional</label>
+              <input class="field-input" id="study-label" name="label" maxlength="80" placeholder="Ex.: Revisão de biologia celular">
             </div>
             <div class="form-actions">
-              <button class="primary-action" type="submit">Gerar estudo em áudio</button>
+              <button class="hss-btn hss-btn-primary" type="submit">Gerar estudo em áudio</button>
               <p class="status-line" role="status" aria-live="polite">Pronto para receber seu texto.</p>
             </div>
           </form>
           <section class="now-playing" data-now-playing aria-labelledby="now-playing-title">
-            <span class="status-label">No ar agora</span>
-            <h3 id="now-playing-title">Estudo gerado</h3>
-            <audio controls preload="metadata"></audio>
+            <span class="now-playing-label">No ar agora</span>
+            <h3 class="now-playing-title" id="now-playing-title">Estudo gerado</h3>
+            <div class="player-frame">
+              <audio controls preload="metadata"></audio>
+            </div>
           </section>
         </section>
         <section data-library aria-label="Biblioteca local"></section>
@@ -101,6 +103,7 @@ export async function mountApp(
   const openStudy = dependencies.getStudy
   libraryView = createLibraryView(libraryContainer, {
     listStudies: dependencies.listStudies,
+    isPlaying: (studyId) => player.isOpen(studyId),
     ...(dependencies.removeStudy === undefined
       ? {}
       : { removeStudy: dependencies.removeStudy }),
@@ -130,6 +133,7 @@ export async function mountApp(
               nowPlaying.classList.add('is-visible')
               status.dataset.kind = 'success'
               status.textContent = 'Reproduzindo a cópia salva neste navegador.'
+              await libraryView.refresh()
             } catch {
               status.dataset.kind = 'error'
               status.textContent = 'Não foi possível abrir este estudo na biblioteca local.'

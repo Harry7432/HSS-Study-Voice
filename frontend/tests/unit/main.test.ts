@@ -75,6 +75,7 @@ it('opens a saved study locally and refreshes its visible completion', async () 
   const listStudies = vi
     .fn()
     .mockResolvedValueOnce([summary(detail)])
+    .mockResolvedValueOnce([summary(detail)])
     .mockResolvedValueOnce([completed])
   const updateProgress = vi.fn().mockResolvedValue(undefined)
   await mountApp(root, {
@@ -105,7 +106,11 @@ it('removes a saved study and discards its active player', async () => {
   const root = document.createElement('div')
   const detail = makeSavedStudy()
   const revokeObjectUrl = vi.fn()
-  const listStudies = vi.fn().mockResolvedValueOnce([summary(detail)]).mockResolvedValueOnce([])
+  const listStudies = vi
+    .fn()
+    .mockResolvedValueOnce([summary(detail)])
+    .mockResolvedValueOnce([summary(detail)])
+    .mockResolvedValueOnce([])
   const removeStudy = vi.fn().mockResolvedValue(undefined)
   await mountApp(root, {
     createStudy: vi.fn(),

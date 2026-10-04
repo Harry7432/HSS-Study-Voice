@@ -8,7 +8,11 @@ interface LibraryViewDependencies extends LibraryReader {
   confirmRemoval?: (study: SavedStudySummary) => boolean
   onOpen?: (studyId: string) => void | Promise<void>
   onRemoved?: (studyId: string) => void
+  isPlaying?: (studyId: string) => boolean
 }
+
+const PLAY_GLYPH =
+  '<svg class="hss-icon" role="img" aria-label="Em reprodução" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
 
 export interface LibraryView {
   refresh(): Promise<void>
@@ -71,37 +75,55 @@ function createStudyRow(
   const item = document.createElement('li')
   item.className = 'study-row'
 
+  const row = document.createElement('div')
+  row.className = 'hss-row'
+
+  const playing = dependencies.isPlaying?.(study.studyId) ?? false
+  if (playing) row.classList.add('is-playing')
+
+  const index = document.createElement('span')
+  index.className = 'hss-row-index'
+  if (playing) {
+    index.innerHTML = PLAY_GLYPH
+  } else {
+    index.setAttribute('aria-hidden', 'true')
+  }
+
+  const main = document.createElement('div')
+  main.className = 'hss-row-main'
+
+  const text = document.createElement('div')
+
   const label = document.createElement('h3')
-  label.className = 'study-label'
+  label.className = 'hss-row-title'
   label.dataset.studyLabel = ''
+  label.title = `ID ${study.studyId}`
   label.textContent = study.label
 
-  const metadata = document.createElement('div')
-  metadata.className = 'study-meta'
-
-  const id = document.createElement('span')
-  id.className = 'study-id'
-  id.textContent = `ID ${study.studyId.slice(0, 8)}`
-  id.title = study.studyId
-
   const date = document.createElement('time')
+  date.className = 'hss-row-artist'
   date.dateTime = study.createdAt
   date.textContent = formatDate(study.createdAt)
 
+  text.append(label, date)
+  main.append(text)
+
+  const status = document.createElement('span')
+  status.className = 'hss-row-album'
+  if (study.progress.completed) status.textContent = 'Concluído'
+
   const duration = document.createElement('span')
+  duration.className = 'hss-row-time'
   duration.textContent = formatDuration(study.durationSeconds)
 
-  metadata.append(id, date, duration)
-  if (study.progress.completed) {
-    const completed = document.createElement('strong')
-    completed.textContent = 'Concluído'
-    metadata.append(completed)
-  }
+  row.append(index, main, status, duration)
+
   const actions = document.createElement('div')
-  actions.className = 'study-actions'
+  actions.className = 'row-actions'
   if (dependencies.getStudy !== undefined) {
     const details = document.createElement('button')
     details.type = 'button'
+    details.className = 'hss-btn hss-btn-tertiary hss-btn-sm'
     details.dataset.showStudyDetails = study.studyId
     details.textContent = 'Detalhes'
     details.addEventListener('click', () => {
@@ -137,6 +159,7 @@ function createStudyRow(
   if (dependencies.onOpen !== undefined) {
     const open = document.createElement('button')
     open.type = 'button'
+    open.className = 'hss-btn hss-btn-tertiary hss-btn-sm'
     open.dataset.openStudy = study.studyId
     open.textContent = 'Ouvir'
     open.addEventListener('click', () => void dependencies.onOpen?.(study.studyId))
@@ -145,6 +168,7 @@ function createStudyRow(
   if (dependencies.removeStudy !== undefined) {
     const remove = document.createElement('button')
     remove.type = 'button'
+    remove.className = 'hss-btn hss-btn-tertiary hss-btn-sm'
     remove.dataset.removeStudy = study.studyId
     remove.textContent = 'Remover'
     remove.addEventListener('click', () => {
@@ -174,7 +198,7 @@ function createStudyRow(
     })
     actions.append(remove)
   }
-  item.append(label, metadata)
+  item.append(row)
   if (actions.childElementCount > 0) item.append(actions)
   return item
 }
@@ -183,7 +207,7 @@ export function createLibraryView(
   container: HTMLElement,
   library: LibraryViewDependencies,
 ): LibraryView {
-  container.classList.add('archive')
+  container.classList.add('archive', 'hss-panel')
   container.innerHTML = `
     <header class="archive-header">
       <h2 class="archive-title">Arquivo local</h2>
