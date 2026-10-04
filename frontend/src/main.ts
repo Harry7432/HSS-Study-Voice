@@ -11,6 +11,7 @@ import type {
 } from './library/types'
 import { createLibraryView } from './ui/libraryView'
 import { createLocalPlayer } from './ui/player'
+import { initThemeToggle } from './ui/theme'
 
 interface AppDependencies {
   createStudy(input: StudyCreateInput): Promise<CreateStudyOutcome>
@@ -44,7 +45,10 @@ export async function mountApp(
   root.innerHTML = `
     <main class="shell">
       <header class="masthead">
-        <h1 class="masthead-title">HSS Study Voice</h1>
+        <div class="masthead-heading">
+          <button class="hss-iconbtn hss-iconbtn-ghost" type="button" data-theme-toggle></button>
+          <h1 class="masthead-title">HSS Study Voice</h1>
+        </div>
         <p class="masthead-note">Seu áudio fica no navegador. O servidor só entra em cena para produzir uma nova faixa.</p>
       </header>
       <div class="workspace">
@@ -78,6 +82,9 @@ export async function mountApp(
     </main>
   `
 
+  const themeToggleButton = root.querySelector<HTMLButtonElement>('[data-theme-toggle]')!
+  initThemeToggle(themeToggleButton)
+
   const form = root.querySelector<HTMLFormElement>('form')!
   const textField = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
   const labelField = root.querySelector<HTMLInputElement>('[name="label"]')!
@@ -94,6 +101,8 @@ export async function mountApp(
     updateProgress: dependencies.updateProgress ?? (async () => undefined),
     createObjectUrl: dependencies.createObjectUrl,
     revokeObjectUrl: dependencies.revokeObjectUrl ?? (() => undefined),
+    onPlaying: async () => libraryView.refresh(),
+    onPaused: async () => libraryView.refresh(),
     onCompleted: async () => libraryView.refresh(),
     onWarning: (message) => {
       status.dataset.kind = 'error'
@@ -103,7 +112,7 @@ export async function mountApp(
   const openStudy = dependencies.getStudy
   libraryView = createLibraryView(libraryContainer, {
     listStudies: dependencies.listStudies,
-    isPlaying: (studyId) => player.isOpen(studyId),
+    isPlaying: (studyId) => player.isOpen(studyId) && player.isPlaying(),
     ...(dependencies.removeStudy === undefined
       ? {}
       : { removeStudy: dependencies.removeStudy }),

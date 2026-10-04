@@ -42,6 +42,12 @@ input:focus-visible {
   padding-bottom: var(--space-4);
 }
 
+.masthead-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .masthead-title {
   margin: 0;
   font: 800 40px/48px var(--font-sans);

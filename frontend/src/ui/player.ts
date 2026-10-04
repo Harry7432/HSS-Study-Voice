@@ -5,6 +5,8 @@ interface LocalPlayerDependencies {
   createObjectUrl(blob: Blob): string
   revokeObjectUrl(url: string): void
   isVisible?: () => boolean
+  onPlaying?: (studyId: string) => void | Promise<void>
+  onPaused?: (studyId: string) => void | Promise<void>
   onCompleted?: (studyId: string) => void | Promise<void>
   onWarning?: (message: string) => void
 }
@@ -13,6 +15,7 @@ export interface LocalPlayer {
   open(study: SavedStudyDetail): void
   discard(): void
   isOpen(studyId: string): boolean
+  isPlaying(): boolean
 }
 
 export function createLocalPlayer(
@@ -75,11 +78,13 @@ export function createLocalPlayer(
   audio.addEventListener('play', () => {
     playing = true
     startTimer()
+    if (activeStudy !== undefined) void dependencies.onPlaying?.(activeStudy.studyId)
   })
   audio.addEventListener('pause', () => {
     playing = false
     stopTimer()
     void persist()
+    if (activeStudy !== undefined) void dependencies.onPaused?.(activeStudy.studyId)
   })
   audio.addEventListener('seeked', () => void persist())
   audio.addEventListener('ended', () => {
@@ -111,5 +116,6 @@ export function createLocalPlayer(
     },
     discard,
     isOpen: (studyId) => activeStudy?.studyId === studyId,
+    isPlaying: () => playing,
   }
 }
