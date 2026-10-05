@@ -1,0 +1,9 @@
+[Unit]
+Description=HSS Study Voice - Timer diario de limpeza de output/
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

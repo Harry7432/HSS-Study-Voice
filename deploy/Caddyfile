@@ -1,0 +1,17 @@
+# deploy/Caddyfile — HSS Study Voice (same-origin: frontend + backend sob um único domínio)
+#
+# T022: substituir "exemplo.com" abaixo pelo domínio real SOMENTE depois de confirmar a
+# propagação de DNS (T020): `dig +short exemplo.com` (de fora do VPS) deve retornar o IP
+# deste VPS. Declarar o domínio antes disso faz a primeira emissão automática de certificado
+# falhar e o Caddy entrar em backoff (research.md, Decisão 1, nota de 2026-10-04).
+#
+# Redirecionamento HTTP->HTTPS (FR-003) é automático e nativo ao declarar um domínio aqui —
+# nenhuma configuração adicional é necessária.
+
+exemplo.com {
+	@backend path /api/* /health
+	reverse_proxy @backend 127.0.0.1:8000
+
+	root * /opt/hss-study-voice/frontend/dist
+	file_server
+}

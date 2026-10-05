@@ -1,0 +1,8 @@
+[Unit]
+Description=HSS Study Voice - Limpeza de output/ (raiz do repositorio, mtime > 24h)
+
+[Service]
+Type=oneshot
+User=hssdeploy
+ExecStart=/usr/bin/find /opt/hss-study-voice/output -maxdepth 1 -type f -name "*.mp3" -mmin +1440 -delete
+ExecStart=/usr/bin/find /opt/hss-study-voice/output -maxdepth 1 -type f -name "*.timeline.json" -mmin +1440 -delete

@@ -1,0 +1,16 @@
+[Unit]
+Description=HSS Study Voice - Backend FastAPI
+After=network.target
+
+[Service]
+Type=simple
+User=hssdeploy
+WorkingDirectory=/opt/hss-study-voice/backend
+ExecStart=uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
