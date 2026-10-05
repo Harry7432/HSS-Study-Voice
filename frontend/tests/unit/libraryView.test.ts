@@ -201,6 +201,74 @@ describe('libraryView', () => {
     })
   })
 
+  it('downloads the saved MP3 under a slugified file name', async () => {
+    const detail = makeDetail()
+    const createObjectUrl = vi.fn().mockReturnValue('blob:estudo')
+    const revokeObjectUrl = vi.fn()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const container = document.createElement('section')
+    const view = createLibraryView(container, {
+      listStudies: vi.fn().mockResolvedValue([detail]),
+      getStudy: vi.fn().mockResolvedValue(detail),
+      createObjectUrl,
+      revokeObjectUrl,
+    })
+    await view.refresh()
+
+    container.querySelector<HTMLButtonElement>('[data-download-study]')!.click()
+
+    await vi.waitFor(() => expect(createObjectUrl).toHaveBeenCalledWith(detail.audio))
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:estudo')
+    clickSpy.mockRestore()
+  })
+
+  it('warns clearly when the MP3 can no longer be downloaded', async () => {
+    const detail = makeDetail()
+    const container = document.createElement('section')
+    const view = createLibraryView(container, {
+      listStudies: vi.fn().mockResolvedValue([detail]),
+      getStudy: vi.fn().mockResolvedValue(undefined),
+    })
+    await view.refresh()
+
+    container.querySelector<HTMLButtonElement>('[data-download-study]')!.click()
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        'não está mais disponível',
+      )
+    })
+  })
+
+  it('downloads a synced .srt transcript', async () => {
+    const detail = makeDetail()
+    detail.timeline.chunks = [
+      {
+        index: 0,
+        start_sample: 0,
+        end_sample: 100,
+        sentences: [{ index: 0, text: 'Olá mundo.', start_sample: 0, end_sample: 100 }],
+      },
+    ]
+    const createObjectUrl = vi.fn().mockReturnValue('blob:estudo-texto')
+    const revokeObjectUrl = vi.fn()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const container = document.createElement('section')
+    const view = createLibraryView(container, {
+      listStudies: vi.fn().mockResolvedValue([detail]),
+      getStudy: vi.fn().mockResolvedValue(detail),
+      createObjectUrl,
+      revokeObjectUrl,
+    })
+    await view.refresh()
+
+    container.querySelector<HTMLButtonElement>('[data-download-study-text]')!.click()
+
+    await vi.waitFor(() => expect(createObjectUrl).toHaveBeenCalled())
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:estudo-texto')
+    clickSpy.mockRestore()
+  })
+
   it('warns clearly when details are unavailable without exposing the technical error', async () => {
     const detail = makeDetail()
     const container = document.createElement('section')

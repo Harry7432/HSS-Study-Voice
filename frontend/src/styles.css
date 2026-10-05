@@ -197,15 +197,76 @@ textarea.field-input {
   color: var(--text-primary);
 }
 
-/* Native <audio controls> stays as-is; this frame only gives it the HSS Music
-   raised-surface treatment. A custom hss-player build is a future task. */
 .player-frame {
   background: var(--bg-raised);
   border-radius: var(--radius-md);
   padding: var(--space-4);
 }
 
-.player-frame audio { display: block; width: 100%; }
+.player-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: var(--space-3);
+  height: auto;
+  padding: 0;
+  background: transparent;
+}
+
+.player-controls-transport { gap: var(--space-3); }
+
+.player-controls-scrub { max-width: none; }
+
+.player-controls-scrub .hss-bar { cursor: pointer; touch-action: none; }
+
+.player-controls-speed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  width: 100%;
+}
+
+.player-controls-speed-label {
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-sans);
+}
+
+.player-controls-speed-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.player-controls-speed-slider {
+  flex: 1;
+  min-width: 8rem;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--progress-track);
+  accent-color: var(--text-primary);
+  cursor: pointer;
+}
+
+.player-controls-speed-value {
+  min-width: 3.5ch;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.now-playing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
 
 .reading-frame {
   margin-top: var(--space-4);
@@ -292,12 +353,45 @@ textarea.field-input {
 
 .study-row:last-child { border-bottom: 0; }
 
+/* hss-row's fixed 56px / 4-column grid is tuned for a wide playlist layout.
+   In the archive's narrower column, the stacked title+date in hss-row-main
+   is taller than 56px and bleeds into hss-row-album/hss-row-time. Re-flow
+   just this scope: title grows the row, status+duration stack beside it,
+   and the empty index (no play glyph) collapses instead of reserving space. */
+.study-row .hss-row {
+  height: auto;
+  min-height: var(--size-control-lg);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "index main status"
+    "index main time";
+  row-gap: 2px;
+}
+
+.study-row .hss-row-index:empty { display: none; }
+
+.study-row .hss-row-index { grid-area: index; grid-row: span 2; }
+
+.study-row .hss-row-main { grid-area: main; min-width: 0; }
+
+.study-row .hss-row-main > div { min-width: 0; }
+
+.study-row .hss-row-album {
+  grid-area: status;
+  justify-self: end;
+  text-align: right;
+}
+
+.study-row .hss-row-time { grid-area: time; justify-self: end; }
+
 /* hss-row's grid (index, main, album, time) has no action column, so Study
    Voice adds this row below it to hold Detalhes / Ouvir / Remover. */
 .row-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  margin-top: var(--space-2);
   padding: 0 var(--space-4) var(--space-3);
 }
 

@@ -1,4 +1,12 @@
 import type { LibraryService, SavedStudyDetail, SavedStudySummary } from '../library/types'
+import {
+  buildTimelineSrt,
+  canShareFiles,
+  downloadBlob,
+  shareOrDownloadAudio,
+  slugifyLabel,
+  type BlobUrlPort,
+} from './mediaExport'
 
 type LibraryReader = Pick<LibraryService, 'listStudies'>
 
@@ -9,13 +17,15 @@ interface LibraryViewDependencies extends LibraryReader {
   onOpen?: (studyId: string) => void | Promise<void>
   onRemoved?: (studyId: string) => void
   isPlaying?: (studyId: string) => boolean
+  createObjectUrl?: BlobUrlPort['createObjectUrl']
+  revokeObjectUrl?: BlobUrlPort['revokeObjectUrl']
 }
 
 const PLAY_GLYPH =
   '<svg class="hss-icon" role="img" aria-label="Em reprodução" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
 
 export interface LibraryView {
-  refresh(): Promise<void>
+  refresh(): Promise<SavedStudySummary[]>
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -67,10 +77,21 @@ function renderDetails(container: HTMLElement, study: SavedStudyDetail): void {
   container.append(title, list)
 }
 
+function showRowWarning(item: HTMLLIElement, message: string): void {
+  let alert = item.querySelector<HTMLElement>('[data-remove-warning]')
+  if (alert === null) {
+    alert = document.createElement('p')
+    alert.dataset.removeWarning = ''
+    alert.role = 'alert'
+    item.append(alert)
+  }
+  alert.textContent = message
+}
+
 function createStudyRow(
   study: SavedStudySummary,
   dependencies: LibraryViewDependencies,
-  refresh: () => Promise<void>,
+  refresh: () => Promise<SavedStudySummary[]>,
 ): HTMLLIElement {
   const item = document.createElement('li')
   item.className = 'study-row'
@@ -165,6 +186,81 @@ function createStudyRow(
     open.addEventListener('click', () => void dependencies.onOpen?.(study.studyId))
     actions.append(open)
   }
+  if (dependencies.getStudy !== undefined) {
+    const urls: BlobUrlPort = {
+      createObjectUrl: dependencies.createObjectUrl ?? ((blob) => URL.createObjectURL(blob)),
+      revokeObjectUrl: dependencies.revokeObjectUrl ?? ((url) => URL.revokeObjectURL(url)),
+    }
+
+    const withDetail = async (
+      button: HTMLButtonElement,
+      action: (detail: SavedStudyDetail) => void | Promise<void>,
+    ): Promise<void> => {
+      button.disabled = true
+      try {
+        const detail = await dependencies.getStudy?.(study.studyId)
+        if (detail === undefined) {
+          showRowWarning(item, 'Este estudo não está mais disponível na biblioteca local.')
+          return
+        }
+        await action(detail)
+      } catch {
+        showRowWarning(
+          item,
+          'Não foi possível preparar este arquivo. Verifique o armazenamento local e tente novamente.',
+        )
+      } finally {
+        button.disabled = false
+      }
+    }
+
+    const download = document.createElement('button')
+    download.type = 'button'
+    download.className = 'hss-btn hss-btn-tertiary hss-btn-sm'
+    download.dataset.downloadStudy = study.studyId
+    download.textContent = 'Baixar MP3'
+    download.addEventListener('click', () => {
+      void withDetail(download, (detail) => {
+        downloadBlob(detail.audio, `${slugifyLabel(detail.label)}.mp3`, urls)
+      })
+    })
+    actions.append(download)
+
+    if (canShareFiles()) {
+      const share = document.createElement('button')
+      share.type = 'button'
+      share.className = 'hss-btn hss-btn-tertiary hss-btn-sm'
+      share.dataset.shareStudy = study.studyId
+      share.textContent = 'Salvar no celular'
+      share.addEventListener('click', () => {
+        void withDetail(share, (detail) =>
+          shareOrDownloadAudio(detail.audio, `${slugifyLabel(detail.label)}.mp3`, detail.label, urls),
+        )
+      })
+      actions.append(share)
+    }
+
+    const downloadText = document.createElement('button')
+    downloadText.type = 'button'
+    downloadText.className = 'hss-btn hss-btn-tertiary hss-btn-sm'
+    downloadText.dataset.downloadStudyText = study.studyId
+    downloadText.textContent = 'Baixar texto'
+    downloadText.addEventListener('click', () => {
+      void withDetail(downloadText, (detail) => {
+        const srt = buildTimelineSrt(detail.timeline)
+        if (srt === undefined) {
+          showRowWarning(item, 'Este estudo não tem texto sincronizado disponível.')
+          return
+        }
+        downloadBlob(
+          new Blob([srt], { type: 'text/plain' }),
+          `${slugifyLabel(detail.label)}.srt`,
+          urls,
+        )
+      })
+    })
+    actions.append(downloadText)
+  }
   if (dependencies.removeStudy !== undefined) {
     const remove = document.createElement('button')
     remove.type = 'button'
@@ -184,15 +280,10 @@ function createStudyRow(
           await refresh()
         } catch {
           remove.disabled = false
-          let alert = item.querySelector<HTMLElement>('[data-remove-warning]')
-          if (alert === null) {
-            alert = document.createElement('p')
-            alert.dataset.removeWarning = ''
-            alert.role = 'alert'
-            item.append(alert)
-          }
-          alert.textContent =
-            'Não foi possível remover este estudo. Verifique o armazenamento local e tente novamente.'
+          showRowWarning(
+            item,
+            'Não foi possível remover este estudo. Verifique o armazenamento local e tente novamente.',
+          )
         }
       })()
     })
@@ -219,7 +310,7 @@ export function createLibraryView(
   const content = container.querySelector<HTMLElement>('[data-library-content]')!
 
   const view: LibraryView = {
-    async refresh(): Promise<void> {
+    async refresh(): Promise<SavedStudySummary[]> {
       content.replaceChildren()
       const loading = document.createElement('p')
       loading.className = 'library-state'
@@ -236,13 +327,14 @@ export function createLibraryView(
           empty.textContent =
             'Nenhum estudo arquivado ainda. O próximo áudio gerado aparece aqui automaticamente.'
           content.append(empty)
-          return
+          return studies
         }
 
         const list = document.createElement('ol')
         list.className = 'library-list'
         studies.forEach((study) => list.append(createStudyRow(study, library, view.refresh)))
         content.append(list)
+        return studies
       } catch {
         count.textContent = 'indisponível'
         content.replaceChildren()
@@ -252,6 +344,7 @@ export function createLibraryView(
         alert.textContent =
           'Não foi possível abrir sua biblioteca local. Verifique o armazenamento do navegador e tente novamente.'
         content.append(alert)
+        return []
       }
     },
   }

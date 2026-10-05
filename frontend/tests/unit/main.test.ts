@@ -226,6 +226,34 @@ it('mounts the Reading View with the freshly generated text right after creating
   expect(readingView?.textContent).toContain(result.timeline.chunks[0]!.sentences[0]!.text)
 })
 
+it('downloads the freshly generated MP3 from the now-playing panel', async () => {
+  const root = document.createElement('div')
+  const result = makeStudyResult()
+  const createStudy = vi.fn().mockResolvedValue({
+    result,
+    label: 'Citologia aplicada',
+    saved: true,
+  })
+  const listStudies = vi.fn().mockResolvedValue([])
+  const createObjectUrl = vi.fn().mockReturnValue('blob:estudo-gerado')
+  const revokeObjectUrl = vi.fn()
+  const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  await mountApp(root, { createStudy, listStudies, createObjectUrl, revokeObjectUrl })
+  const text = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
+  text.value = 'Texto para o estudo.'
+  root.querySelector('form')!.dispatchEvent(new SubmitEvent('submit', { cancelable: true }))
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:estudo-gerado')
+  })
+  createObjectUrl.mockClear()
+
+  root.querySelector<HTMLButtonElement>('[data-download-audio]')!.click()
+
+  expect(createObjectUrl).toHaveBeenCalledWith(result.audio)
+  expect(revokeObjectUrl).toHaveBeenCalled()
+  clickSpy.mockRestore()
+})
+
 it('blocks study creation immediately while offline, without calling createStudy or throwing (US3, FR-005)', async () => {
   vi.spyOn(connectivity, 'getConnectivityStatus').mockReturnValue({ online: false })
   const root = document.createElement('div')
@@ -247,4 +275,92 @@ it('blocks study creation immediately while offline, without calling createStudy
     expect(root.querySelector('.status-line')?.textContent).toContain('offline')
   })
   expect(createStudy).not.toHaveBeenCalled()
+})
+
+it('sends the chosen voice and narration speed when the user picks non-default chips', async () => {
+  const root = document.createElement('div')
+  const result = makeStudyResult()
+  const createStudy = vi.fn().mockResolvedValue({
+    result,
+    label: 'Citologia aplicada',
+    saved: true,
+  })
+  const listStudies = vi.fn().mockResolvedValue([])
+  await mountApp(root, {
+    createStudy,
+    listStudies,
+    createObjectUrl: vi.fn().mockReturnValue('blob:estudo-gerado'),
+  })
+  const text = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
+  const label = root.querySelector<HTMLInputElement>('[name="label"]')!
+  text.value = 'Texto para o estudo.'
+  label.value = 'Citologia aplicada'
+  root
+    .querySelector<HTMLButtonElement>('[data-voice-group] [data-chip-value="pt_BR-faber-medium"]')!
+    .click()
+  root
+    .querySelector<HTMLButtonElement>('[data-generation-speed-group] [data-chip-value="1.5"]')!
+    .click()
+
+  root.querySelector('form')!.dispatchEvent(new SubmitEvent('submit', { cancelable: true }))
+
+  await vi.waitFor(() => {
+    expect(createStudy).toHaveBeenCalledWith({
+      text: 'Texto para o estudo.',
+      label: 'Citologia aplicada',
+      voice: 'pt_BR-faber-medium',
+      speed: 1.5,
+    })
+  })
+})
+
+it('navigates to the next and previous study from the player transport', async () => {
+  const root = document.createElement('div')
+  const newer = makeSavedStudy()
+  const older = {
+    ...makeSavedStudy(),
+    studyId: 'o'.repeat(32),
+    label: 'Estudo mais antigo',
+    createdAt: '2026-10-01T12:00:00.000Z',
+  }
+  const listStudies = vi.fn().mockResolvedValue([summary(newer), summary(older)])
+  const getStudy = vi.fn().mockImplementation(async (studyId: string) =>
+    studyId === older.studyId ? older : newer,
+  )
+  const createObjectUrl = vi
+    .fn()
+    .mockReturnValueOnce('blob:newer')
+    .mockReturnValueOnce('blob:older')
+    .mockReturnValueOnce('blob:newer-again')
+  await mountApp(root, {
+    createStudy: vi.fn(),
+    listStudies,
+    getStudy,
+    updateProgress: vi.fn().mockResolvedValue(undefined),
+    removeStudy: vi.fn(),
+    createObjectUrl,
+    revokeObjectUrl: vi.fn(),
+    confirmRemoval: vi.fn().mockReturnValue(true),
+  })
+
+  root.querySelectorAll<HTMLButtonElement>('[data-open-study]')[0]!.click()
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:newer')
+  })
+  expect(root.querySelector<HTMLButtonElement>('[data-player-previous]')?.disabled).toBe(true)
+  expect(root.querySelector<HTMLButtonElement>('[data-player-next]')?.disabled).toBe(false)
+
+  root.querySelector<HTMLButtonElement>('[data-player-next]')!.click()
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:older')
+  })
+  expect(root.querySelector('#now-playing-title')?.textContent).toBe('Estudo mais antigo')
+  expect(root.querySelector<HTMLButtonElement>('[data-player-previous]')?.disabled).toBe(false)
+  expect(root.querySelector<HTMLButtonElement>('[data-player-next]')?.disabled).toBe(true)
+
+  root.querySelector<HTMLButtonElement>('[data-player-previous]')!.click()
+  await vi.waitFor(() => {
+    expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:newer-again')
+  })
+  expect(root.querySelector('#now-playing-title')?.textContent).toBe(newer.label)
 })
