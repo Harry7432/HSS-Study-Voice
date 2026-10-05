@@ -9,10 +9,13 @@ import type {
   SavedStudySummary,
   StudyCreateInput,
 } from './library/types'
+import { getConnectivityStatus } from './platform/connectivity'
+import { createConnectivityIndicator } from './ui/connectivityIndicator'
 import { createLibraryView } from './ui/libraryView'
 import { createLocalPlayer } from './ui/player'
 import { createReadingView } from './ui/readingView'
 import { initThemeToggle } from './ui/theme'
+import { createUpdateNotice } from './ui/updateNotice'
 
 interface AppDependencies {
   createStudy(input: StudyCreateInput): Promise<CreateStudyOutcome>
@@ -49,9 +52,11 @@ export async function mountApp(
         <div class="masthead-heading">
           <button class="hss-iconbtn hss-iconbtn-ghost" type="button" data-theme-toggle></button>
           <h1 class="masthead-title">HSS Study Voice</h1>
+          <div data-connectivity-indicator></div>
         </div>
         <p class="masthead-note">Seu áudio fica no navegador. O servidor só entra em cena para produzir uma nova faixa.</p>
       </header>
+      <div data-update-notice></div>
       <div class="workspace">
         <section class="desk hss-panel" aria-labelledby="production-title">
           <h2 class="desk-title" id="production-title">Prepare o próximo estudo</h2>
@@ -86,12 +91,14 @@ export async function mountApp(
 
   const themeToggleButton = root.querySelector<HTMLButtonElement>('[data-theme-toggle]')!
   initThemeToggle(themeToggleButton)
+  createConnectivityIndicator(root.querySelector<HTMLElement>('[data-connectivity-indicator]')!)
+  createUpdateNotice(root.querySelector<HTMLElement>('[data-update-notice]')!)
 
   const form = root.querySelector<HTMLFormElement>('form')!
   const textField = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
   const labelField = root.querySelector<HTMLInputElement>('[name="label"]')!
   const submitButton = root.querySelector<HTMLButtonElement>('button[type="submit"]')!
-  const status = root.querySelector<HTMLElement>('[role="status"]')!
+  const status = root.querySelector<HTMLElement>('.status-line')!
   const nowPlaying = root.querySelector<HTMLElement>('[data-now-playing]')!
   const nowPlayingTitle = root.querySelector<HTMLElement>('#now-playing-title')!
   const audio = root.querySelector<HTMLAudioElement>('audio')!
@@ -178,6 +185,11 @@ export async function mountApp(
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     void (async () => {
+      if (!getConnectivityStatus().online) {
+        status.dataset.kind = 'error'
+        status.textContent = 'Você está offline. Conecte-se à internet para gerar um novo estudo.'
+        return
+      }
       submitButton.disabled = true
       submitButton.textContent = 'Produzindo áudio…'
       status.dataset.kind = 'progress'

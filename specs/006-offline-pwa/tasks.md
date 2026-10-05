@@ -186,7 +186,7 @@ navegador/SO, e confirmar que o app passa a abrir em janela própria com nome/í
 > resultado esperado na primeira execução de T014 é **GREEN direto** (regra de RED→GREEN no topo
 > deste arquivo).
 
-- [ ] T014 [P] [US2] Escrever o cenário e2e "manifesto de instalabilidade" em
+- [x] T014 [P] [US2] Escrever o cenário e2e "manifesto de instalabilidade" em
       `frontend/e2e/offline-shell.spec.ts`, rodando contra o projeto `offline-shell` (T009):
       navegar até o app e buscar o `<link rel="manifest">` resolvido, buscar
       `manifest.webmanifest` via `request`, e validar que o JSON contém `name: "HSS Study
@@ -197,7 +197,7 @@ navegador/SO, e confirmar que o app passa a abrir em janela própria com nome/í
 
 ### Implementação para User Story 2
 
-- [ ] T015 [US2] Rodar T014 e, se necessário, ajustar os campos do `manifest` em
+- [x] T015 [US2] Rodar T014 e, se necessário, ajustar os campos do `manifest` em
       `frontend/vite.config.ts` (T006) até o teste passar (GREEN) — nenhum código de aplicação
       novo é esperado para US2 além do manifesto e dos ícones já produzidos em T002/T006
       (`research.md`, Decisão 7: sem botão de instalação customizado).
@@ -211,6 +211,10 @@ navegador/SO, e confirmar que o app passa a abrir em janela própria com nome/í
       resultado no placeholder já preparado no `quickstart.md` (Cenário 3) e marcar esta tarefa em
       `tasks.md`, seguindo o mesmo padrão usado na Fase 6 (`specs/004-hss-music-design-system/quickstart.md`,
       commit `b3eb647`) — não existe pasta `docs/validation/` neste repositório.
+      **Status (2026-10-04)**: parcialmente feito — os campos do manifesto já têm cobertura e2e
+      automatizada (T014); a oferta de instalação nativa em si continua pendente de verificação
+      manual real (ver nota em `quickstart.md`, Cenário 3) — não foi possível neste ambiente
+      (sem navegador real alcançável pela automação, sem dispositivo mobile).
 
 **Checkpoint**: User Stories 1 e 2 funcionam de forma independente. App instalável com
 manifesto correto; US1 continua intacta.
@@ -229,20 +233,20 @@ Independent Test; `quickstart.md`, Cenário 4).
 
 ### Testes para User Story 3 (RED) ⚠️
 
-- [ ] T017 [P] [US3] Estender `frontend/tests/unit/main.test.ts`: com `connectivity.ts` (T005)
+- [x] T017 [P] [US3] Estender `frontend/tests/unit/main.test.ts`: com `connectivity.ts` (T005)
       mockado/forçado para `online: false`, submeter o formulário de criação de estudo e
       confirmar que `dependencies.createStudy` **não é chamado**, que a mensagem de bloqueio
       aparece no elemento `role="status"` existente (`frontend/src/main.ts`, linha do
       `status-line`), e que nenhum erro não tratado é lançado (`research.md`, Decisão 4; FR-005).
       Confirmar que o teste falha (guarda ainda não existe).
-- [ ] T018 [P] [US3] Criar `frontend/tests/unit/connectivityIndicator.test.ts`: renderizar o
+- [x] T018 [P] [US3] Criar `frontend/tests/unit/connectivityIndicator.test.ts`: renderizar o
       indicador com estado inicial `online: true` e confirmar texto "Online" + um segundo sinal
       não-cor (ex.: ícone/glifo) dentro de elemento com `role="status"`/`aria-live="polite"`;
       disparar o evento `offline` via `connectivity.ts` (T005) e confirmar que o texto muda para
       "Offline" com o sinal correspondente, sem exigir recarregamento (`data-model.md` →
       Connectivity Status; FR-004, FR-011). Confirmar que o teste falha (módulo ainda não
       existe).
-- [ ] T019 [P] [US3] Criar `frontend/e2e/offline-connectivity.spec.ts` (arquivo novo, separado de
+- [x] T019 [P] [US3] Criar `frontend/e2e/offline-connectivity.spec.ts` (arquivo novo, separado de
       `offline-shell.spec.ts` — ver T009 sobre por que os dois cenários de servidor não podem
       compartilhar um arquivo) e escrever o cenário e2e "bloquear criação de estudo offline",
       rodando contra o projeto padrão/servidor de desenvolvimento existente (não precisa do
@@ -250,7 +254,7 @@ Independent Test; `quickstart.md`, Cenário 4).
       `context.setOffline(true)`, preencher e submeter o formulário de criação, confirmar que
       nenhuma requisição para `/api/v1/studies` é disparada e que a mensagem de bloqueio aparece
       (`quickstart.md`, Cenário 4; SC-003). Confirmar que falha.
-- [ ] T020 [P] [US3] Estender o mesmo arquivo `frontend/e2e/offline-connectivity.spec.ts` com o
+- [x] T020 [P] [US3] Estender o mesmo arquivo `frontend/e2e/offline-connectivity.spec.ts` com o
       cenário "indicador de conectividade reflete online/offline automaticamente": alternar
       `context.setOffline(true)`/`false` sem recarregar a página e confirmar que o indicador
       muda de estado automaticamente nas duas direções, e que a criação de estudo volta a ficar
@@ -258,20 +262,20 @@ Independent Test; `quickstart.md`, Cenário 4).
 
 ### Implementação para User Story 3
 
-- [ ] T021 [P] [US3] Implementar `frontend/src/ui/connectivityIndicator.ts`: consome
+- [x] T021 [P] [US3] Implementar `frontend/src/ui/connectivityIndicator.ts`: consome
       `connectivity.ts` (T005), renderiza texto (`"Online"`/`"Offline"`) + glifo/ícone dentro de
       um elemento com `role="status"` e `aria-live="polite"`, atualizando em resposta aos eventos
       de conectividade (`research.md`, Decisão 6). Rodar T018 e confirmar GREEN.
-- [ ] T022 [US3] Em `frontend/src/main.ts`: importar e montar `connectivityIndicator.ts` (T021)
+- [x] T022 [US3] Em `frontend/src/main.ts`: importar e montar `connectivityIndicator.ts` (T021)
       no `mountApp`; adicionar a guarda de conectividade no handler de submit do formulário de
       criação — consultar `connectivity.ts` (T005) **antes** de chamar
       `dependencies.createStudy`, e se offline, interromper imediatamente exibindo mensagem clara
       no elemento `role="status"` existente, sem disparar nenhum `fetch` (`research.md`, Decisão
       4; FR-005). Rodar T017 e confirmar GREEN.
-- [ ] T023 [US3] Em `frontend/src/styles.css`: adicionar os blocos `.connectivity-*` (apenas
+- [x] T023 [US3] Em `frontend/src/styles.css`: adicionar os blocos `.connectivity-*` (apenas
       tokens já existentes em `frontend/src/hss/tokens.css`, sem cor nova) para o indicador de
       T021, incluindo estado visual do glifo online/offline (`research.md`, Decisão 6).
-- [ ] T024 [US3] Rodar `npm run test:e2e` em `frontend/` e confirmar que T019 e T020 passam
+- [x] T024 [US3] Rodar `npm run test:e2e` em `frontend/` e confirmar que T019 e T020 passam
       (GREEN).
 
 **Checkpoint**: todas as três user stories funcionam de forma independente. Indicador de
@@ -287,7 +291,7 @@ estarem completas.
 
 ### Testes de atualização (RED) ⚠️
 
-- [ ] T025 [P] [Polish] Criar `frontend/tests/unit/updateNotice.test.ts`: mockar os callbacks do
+- [x] T025 [P] [Polish] Criar `frontend/tests/unit/updateNotice.test.ts`: mockar os callbacks do
       módulo virtual `virtual:pwa-register` (`onNeedRefresh`, `onOfflineReady`); confirmar que o
       estado inicial é `"idle"`, que `onNeedRefresh()` transiciona para `"available"` e exibe um
       aviso não bloqueante, e que só uma ação explícita do usuário chama `updateSW(true)`
@@ -297,7 +301,7 @@ estarem completas.
       erro não tratado e permanece em `"idle"` sem exibir aviso de atualização — esta é a parte de
       FR-008 que pode ser verificada automaticamente, sem depender de um navegador real sem
       suporte. Confirmar que falha.
-- [ ] T026 [P] [Polish] Escrever o cenário e2e "atualização não interrompe reprodução em
+- [x] T026 [P] [Polish] Escrever o cenário e2e "atualização não interrompe reprodução em
       andamento" em `frontend/e2e/offline-shell.spec.ts`, rodando contra o projeto `offline-shell`
       (T009): com áudio tocando, simular uma nova versão do service worker disponível (ex.:
       reconstruir o build com um comentário trivial alterado e servir a nova versão), confirmar
@@ -306,14 +310,14 @@ estarem completas.
 
 ### Implementação de atualização (GREEN)
 
-- [ ] T027 [Polish] Implementar `frontend/src/ui/updateNotice.ts`: consome
+- [x] T027 [Polish] Implementar `frontend/src/ui/updateNotice.ts`: consome
       `virtual:pwa-register`, registra `onNeedRefresh`/`onOfflineReady`, mantém o estado
       `"idle" | "available" | "applying"` de `data-model.md`, e expõe um aviso não bloqueante que
       só chama `updateSW(true)` mediante ação explícita do usuário — nenhum timer, nenhum
       recarregamento automático (`research.md`, Decisão 5). Tratar a ausência de suporte a Service
       Worker como um no-op seguro (sem lançar erro, sem exibir aviso) em vez de presumir que o
       módulo virtual sempre resolve — FR-008. Rodar T025 e confirmar GREEN.
-- [ ] T028 [Polish] Em `frontend/src/main.ts`: importar e montar `updateNotice.ts` (T027) no
+- [x] T028 [Polish] Em `frontend/src/main.ts`: importar e montar `updateNotice.ts` (T027) no
       `mountApp`. Em `frontend/src/styles.css`: adicionar os blocos `.update-notice-*`
       (tokens-only). Rodar T026 e confirmar GREEN.
 
@@ -324,23 +328,34 @@ estarem completas.
 > (`specs/004-hss-music-design-system/quickstart.md`, commit `b3eb647`). Não existe pasta
 > `docs/validation/` neste repositório.
 
-- [ ] T029 [P] [Polish] Validar manualmente o Cenário 2 do `quickstart.md` (primeira visita já
+- [x] T029 [P] [Polish] Validar manualmente o Cenário 2 do `quickstart.md` (primeira visita já
       offline, sem visita prévia — comportamento padrão de site inacessível, sem oferta de cópia
       inexistente); registrar o resultado (ver nota acima).
+      **Status (2026-10-04)**: verificado via uma checagem Playwright pontual (não commitada) em
+      vez de um navegador manual — ver resultado em `quickstart.md`, Cenário 2.
 - [ ] T030 [P] [Polish] Validar manualmente o Cenário 7 do `quickstart.md` (múltiplas abas durante
       uma atualização — a aba que não aceitou a atualização continua operando de forma consistente,
       sem perda de progresso de reprodução); registrar o resultado (ver nota acima).
+      **Status (2026-10-04)**: não verificado empiricamente neste ambiente — apenas análise de
+      arquitetura registrada em `quickstart.md`, Cenário 7. Pendente de confirmação manual real
+      com duas abas.
 - [ ] T031 [P] [Polish] Validar manualmente o Cenário 8 do `quickstart.md` (falha ao atualizar o
       cache por esgotamento de armazenamento — os estudos já salvos no IndexedDB não são
       perdidos, e o app continua funcional online); registrar o resultado (ver nota acima).
+      **Status (2026-10-04)**: não verificado empiricamente neste ambiente — apenas análise de
+      arquitetura registrada em `quickstart.md`, Cenário 8. Pendente de confirmação manual real
+      com quota de armazenamento reduzida.
 
 ### Regressão final
 
-- [ ] T032 [Polish] Rodar a suíte completa em `frontend/`: `npm run build && npm test && npm run
+- [x] T032 [Polish] Rodar a suíte completa em `frontend/`: `npm run build && npm test && npm run
       test:e2e`, confirmando que todos os testes novos (T004, T010, T011, T014, T017–T020, T025,
       T026) e todos os testes já existentes (incluindo `frontend/e2e/library.spec.ts` e
       `frontend/tests/unit/main.test.ts` já existentes antes desta fase) passam sem regressão
       (FR-010, SC-004; `quickstart.md` → Verificação automatizada).
+      **Status (2026-10-04)**: feito — ver resultado detalhado em `quickstart.md` → Verificação
+      automatizada (121 testes unitários, 11 testes e2e, 0 falhas; detalhe sobre contenção de CPU
+      com paralelismo padrão incluído lá).
 - [ ] T033 [Polish] Executar o roteiro completo de validação manual do `quickstart.md`
       (Cenários 1, 3, 4, 5 e 6, além de 2, 7 e 8 já cobertos em T029–T031) e registrar a evidência
       final da fase nos placeholders do próprio `quickstart.md` (um por Cenário) e em `tasks.md`
@@ -348,6 +363,12 @@ estarem completas.
       validação manual da Fase 6 foi registrada assim, dentro do `quickstart.md`/`tasks.md` da
       fase (commit `b3eb647`), não em uma pasta `docs/validation/` separada, que não existe neste
       repositório.
+      **Status (2026-10-04)**: parcial — Cenários 1, 2, 4, 5 e 6 verificados (automatizado via
+      e2e/Playwright, ver `quickstart.md`); Cenário 3 parcialmente verificado (manifesto
+      automatizado, oferta de instalação nativa pendente); Cenários 7 e 8 pendentes de
+      verificação manual real (só análise de arquitetura até aqui). Esta tarefa não pode ser
+      marcada como concluída enquanto esses três itens continuarem pendentes de um navegador/
+      dispositivo real.
 
 **Checkpoint**: as três user stories, o fluxo de atualização e todos os edge cases do `spec.md`
 estão implementados, testados (unit + e2e) e validados manualmente, sem regressão em nenhum teste

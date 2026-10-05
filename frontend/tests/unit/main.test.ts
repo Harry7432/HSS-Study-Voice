@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 
 import { mountApp } from '../../src/main'
+import * as connectivity from '../../src/platform/connectivity'
 import type { SavedStudyDetail, SavedStudySummary } from '../../src/library/types'
 import { makeStudyResult } from '../setup'
 
@@ -59,7 +60,7 @@ it('keeps generated audio playable and warns when only local storage fails', asy
     })
   })
   expect(root.querySelector('audio')?.getAttribute('src')).toBe('blob:estudo-gerado')
-  expect(root.querySelector('[role="status"]')?.textContent).toContain(
+  expect(root.querySelector('.status-line')?.textContent).toContain(
     'O áudio foi gerado, mas não pôde ser salvo',
   )
   expect(root.querySelector('[data-now-playing]')?.classList).toContain('is-visible')
@@ -223,4 +224,27 @@ it('mounts the Reading View with the freshly generated text right after creating
   })
   const readingView = root.querySelector('[data-reading-view]')
   expect(readingView?.textContent).toContain(result.timeline.chunks[0]!.sentences[0]!.text)
+})
+
+it('blocks study creation immediately while offline, without calling createStudy or throwing (US3, FR-005)', async () => {
+  vi.spyOn(connectivity, 'getConnectivityStatus').mockReturnValue({ online: false })
+  const root = document.createElement('div')
+  const createStudy = vi.fn()
+  const listStudies = vi.fn().mockResolvedValue([])
+  await mountApp(root, {
+    createStudy,
+    listStudies,
+    createObjectUrl: vi.fn(),
+  })
+  const text = root.querySelector<HTMLTextAreaElement>('[name="text"]')!
+  text.value = 'Texto para o estudo.'
+
+  expect(() => {
+    root.querySelector('form')!.dispatchEvent(new SubmitEvent('submit', { cancelable: true }))
+  }).not.toThrow()
+
+  await vi.waitFor(() => {
+    expect(root.querySelector('.status-line')?.textContent).toContain('offline')
+  })
+  expect(createStudy).not.toHaveBeenCalled()
 })

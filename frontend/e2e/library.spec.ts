@@ -88,7 +88,7 @@ test('gera, salva, retoma, conclui offline e remove o estudo local', async ({ pa
   await page.getByLabel('Rótulo opcional').fill(STUDY_LABEL)
   await page.getByRole('button', { name: 'Gerar estudo em áudio' }).click()
 
-  await expect(page.getByRole('status')).toHaveText('Áudio pronto e arquivado neste navegador.', {
+  await expect(page.locator('.status-line')).toHaveText('Áudio pronto e arquivado neste navegador.', {
     timeout: 90_000,
   })
   const library = page.getByRole('region', { name: 'Biblioteca local' })
@@ -166,7 +166,7 @@ test('mantém o áudio reproduzível quando o armazenamento local está indispon
   await page.getByLabel('Rótulo opcional').fill('Sem armazenamento')
   await page.getByRole('button', { name: 'Gerar estudo em áudio' }).click()
 
-  await expect(page.getByRole('status')).toContainText(
+  await expect(page.locator('.status-line')).toContainText(
     'O áudio foi gerado, mas não pôde ser salvo na biblioteca local.',
     { timeout: 90_000 },
   )
@@ -184,7 +184,7 @@ test('exibe o texto sincronizado ao reabrir um estudo salvo e avança a reprodu�
   await page.getByLabel('Texto do estudo').fill(STUDY_TEXT)
   await page.getByLabel('Rótulo opcional').fill('Texto sincronizado')
   await page.getByRole('button', { name: 'Gerar estudo em áudio' }).click()
-  await expect(page.getByRole('status')).toHaveText('Áudio pronto e arquivado neste navegador.', {
+  await expect(page.locator('.status-line')).toHaveText('Áudio pronto e arquivado neste navegador.', {
     timeout: 90_000,
   })
 
@@ -218,7 +218,7 @@ test('mantém o texto sincronizado e a navegação por clique funcionando totalm
   await page.getByLabel('Texto do estudo').fill(STUDY_TEXT)
   await page.getByLabel('Rótulo opcional').fill('Texto offline')
   await page.getByRole('button', { name: 'Gerar estudo em áudio' }).click()
-  await expect(page.getByRole('status')).toHaveText('Áudio pronto e arquivado neste navegador.', {
+  await expect(page.locator('.status-line')).toHaveText('Áudio pronto e arquivado neste navegador.', {
     timeout: 90_000,
   })
 
@@ -255,7 +255,7 @@ test('atualiza o destaque em até 300ms da transição real de frase durante a r
   await page.getByLabel('Texto do estudo').fill(text)
   await page.getByLabel('Rótulo opcional').fill('Texto latência')
   await page.getByRole('button', { name: 'Gerar estudo em áudio' }).click()
-  await expect(page.getByRole('status')).toHaveText('Áudio pronto e arquivado neste navegador.', {
+  await expect(page.locator('.status-line')).toHaveText('Áudio pronto e arquivado neste navegador.', {
     timeout: 90_000,
   })
 
